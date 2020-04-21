@@ -1,3 +1,13 @@
+# project
+9cc
+
+# Yang-33
+C-Compiler.sln
+C-Compiler.vcxproj
+C-Compiler.vcxproj.filters
+C-Compiler.vcxproj.user
+.vs/
+
 # Prerequisites
 *.d
 
