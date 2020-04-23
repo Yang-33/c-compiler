@@ -21,11 +21,17 @@ struct Token {
 };
 
 Token *current_token;
+char *user_input;
 
-// Reports an error message and exit.
-void error(char *fmt, ...) {
+// Reports an error location and exit.
+void error_at(char *loc, char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
+
+    int pos = loc - user_input;
+    fprintf(stderr, "%s\n", user_input);
+    fprintf(stderr, "%*s", pos, "");
+    fprintf(stderr, "^ ");
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");
     exit(1);
@@ -45,7 +51,7 @@ bool consume(char op) {
 // Otherwise, it calls an error function.
 void expect(char op) {
     if (current_token->kind != TOKEN_SYMBOL || current_token->str[0] != op) {
-        error("It's not '%c'.", op);
+        error_at(current_token->str, "Expected '%c'.", op);
     }
     current_token = current_token->next;
 }
@@ -54,7 +60,7 @@ void expect(char op) {
 // Otherwise, it calls an error function.
 int expect_number() {
     if (current_token->kind != TOKEN_NUM) {
-        error("It's not a number");
+        error_at(current_token->str, "Expected a number.");
     }
     int val = current_token->val;
     current_token = current_token->next;
@@ -75,7 +81,8 @@ Token *create_new_token(Token* tail, TokenKind kind, char *str) {
 }
 
 // Tokenize |p| and returns token's head.
-Token *tokenize(char *p) {
+Token *tokenize() {
+    char *p = user_input;
     Token head;
     head.next = NULL;
     Token *cur = &head;
@@ -99,7 +106,7 @@ Token *tokenize(char *p) {
             cur->val = strtol(p, &p, 10);
             continue;
         }
-        error("Invalid token");
+        error_at(p, "Expected a number.");
     }
 
     create_new_token(cur, TOKEN_EOF, p);
@@ -126,7 +133,8 @@ int main(int argc, char **argv) {
     printf(".global main\n");
     printf("main:\n");
 
-    current_token = tokenize(argv[1]);
+    user_input = argv[1];
+    current_token = tokenize();
 
     printf("  mov rax, %d\n", expect_number());
 
