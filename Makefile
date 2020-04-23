@@ -1,4 +1,4 @@
-CFLAGS=-std=c11 -g -static
+CFLAGS=-std=c11 -g -static -Wall -Wextra
 
 9cc: main.o
 	$(CC) -o $@ $? $(LDFLAGS)
