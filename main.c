@@ -104,7 +104,7 @@ Token *tokenize() {
         }
 
         // Symbol
-        if (*p == '+' || *p == '-' || *p == '(' || *p == ')') {
+        if (strchr("+-*/()", *p)) {
             cur = create_new_token(cur, TOKEN_SYMBOL, p++);
             continue;
         }
@@ -115,7 +115,7 @@ Token *tokenize() {
             cur->val = strtol(p, &p, 10);
             continue;
         }
-        compile_error_at(p, "Expected a number.");
+        compile_error_at(p, "Invalid token");
     }
 
     create_new_token(cur, TOKEN_EOF, p);
@@ -137,8 +137,8 @@ void print_all_token(Token* head) {
 typedef enum {
     NODE_ADD,
     NODE_SUB,
-    //NODE_MUL,
-    //NODE_DIV,
+    NODE_MUL,
+    NODE_DIV,
     NODE_NUM,
 } NodeKind;
 
@@ -171,16 +171,18 @@ Node *create_new_number(int val) {
 }
 
 Node *expr();
+Node *mul();
 Node *primary();
 
+// expr = mul ("+" mul | "-" mul)*
 Node *expr() {
-    Node *node = primary();
+    Node *node = mul();
     for (;;) {
         if (consume('+')) {
-            node = create_new_binary(NODE_ADD, node, primary());
+            node = create_new_binary(NODE_ADD, node, mul());
         }
         else if (consume('-')) {
-            node = create_new_binary(NODE_SUB, node, primary());
+            node = create_new_binary(NODE_SUB, node, mul());
         }
         else {
             return node;
@@ -188,6 +190,23 @@ Node *expr() {
     }
 }
 
+// mul = primary ("*" primary | "/" primary)*
+Node *mul() {
+    Node *node = primary();
+    for (;;) {
+        if (consume('*')) {
+            node = create_new_binary(NODE_MUL, node, primary());
+        }
+        else if (consume('/')) {
+            node = create_new_binary(NODE_DIV, node, primary());
+        }
+        else {
+            return node;
+        }
+    }
+}
+
+// primary = "(" expr ")" | num
 Node *primary() {
     if (consume('(')) {
         Node *node = expr();
@@ -218,6 +237,16 @@ void generate_asm(Node *node) {
         break;
     case NODE_SUB:
         printf("  sub rax, rdi\n");
+        break;
+    case NODE_MUL:
+        printf("  imul rax, rdi\n");
+        break;
+    case NODE_DIV:
+        // RDX:RAX <- sign-extend of RAX.
+        printf("  cqo\n");
+        // Signed divide RDX:RAX by rdi with result stored in RAX(quotient),
+        // RDX(remainder)
+        printf("  idiv rdi\n");
         break;
     case NODE_NUM:
         error("Internal error: invalid node. kind:= %d", node->kind);
