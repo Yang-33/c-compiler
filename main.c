@@ -5,6 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+//
+// Tokenizer
+//
+
 typedef enum {
     TOKEN_SYMBOL,
     TOKEN_NUM,
@@ -12,7 +16,6 @@ typedef enum {
 } TokenKind;
 
 typedef struct Token Token;
-
 struct Token {
     TokenKind kind;
     Token *next;
@@ -21,11 +24,11 @@ struct Token {
     size_t token_length;
 };
 
-Token *current_token;
-char *user_input;
+// Input string
+static char *current_input;
 
 // Reports an error and exit.
-void error(char *fmt, ...) {
+static void error(char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
     vfprintf(stderr, fmt, ap);
@@ -34,12 +37,9 @@ void error(char *fmt, ...) {
 }
 
 // Reports an error location and exit.
-void compile_error_at(char *loc, char *fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
-
-    int pos = loc - user_input;
-    fprintf(stderr, "%s\n", user_input);
+static void compile_error_at(char *token_string, char *fmt, va_list ap) {
+    int pos = token_string - current_input;
+    fprintf(stderr, "%s\n", current_input);
     fprintf(stderr, "%*s", pos, "");
     fprintf(stderr, "^ ");
     vfprintf(stderr, fmt, ap);
@@ -47,68 +47,59 @@ void compile_error_at(char *loc, char *fmt, ...) {
     exit(1);
 }
 
-// Consumes the current token if it matches |op| or an expected symbol.
-// Otherwise, it returns false.
-bool consume(char *op) {
-    if (current_token->kind != TOKEN_SYMBOL
-        || strlen(op) != current_token->token_length
-        || memcmp(current_token->token_string, op, current_token->token_length))
-    {
-        return false;
-    }
-    current_token = current_token->next;
-    return true;
+static void error_at(char *token_string, char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    compile_error_at(token_string, fmt, ap);
 }
 
-// Eusures the current token if it matches |op| or an expected symbol.
-// Otherwise, it calls an error function.
-void expect(char *op) {
-    if (current_token->kind != TOKEN_SYMBOL
-        || strlen(op) != current_token->token_length
-        || memcmp(current_token->token_string, op, current_token->token_length))
-    {
-        compile_error_at(current_token->token_string, "expected \"%s\".", op);
-    }
-    current_token = current_token->next;
+static void error_tok(Token *tok, char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    compile_error_at(tok->token_string, fmt, ap);
 }
 
-// Eusures the current token if it's a number and returns its value.
-// Otherwise, it calls an error function.
-int expect_number() {
-    if (current_token->kind != TOKEN_NUM) {
-        compile_error_at(current_token->token_string, "expected a number.");
-    }
-    int val = current_token->val;
-    current_token = current_token->next;
-    return val;
+// Check that the current token equals to |s|.
+static bool equal(Token *tok, char *s) {
+    return strlen(s) == tok->token_length &&
+        !strncmp(tok->token_string, s, tok->token_length);
 }
 
-bool at_eof() {
-    return current_token->kind == TOKEN_EOF;
+// Ensures that the current token is |s|.
+static Token *skip(Token *tok, char *s) {
+    if (!equal(tok, s))
+        error_tok(tok, "expected '%s'.", s);
+    return tok->next;
+}
+
+// Ensures that the current token is |TOKEN_NUM|.
+static int take_number(Token *tok) {
+    if (tok->kind != TOKEN_NUM)
+        error_tok(tok, "expected a number.");
+    return tok->val;
 }
 
 // Adds the token information for |kind| and |str| after |tail|.
-Token *create_new_token(Token* tail, TokenKind kind, char *token_string,
+static Token *create_new_token(Token *tail, TokenKind kind, char *token_string,
     int token_length) {
-
-    Token *token = calloc(1, sizeof(Token));
-    token->kind = kind;
-    token->token_string = token_string;
-    token->token_length = token_length;
-    tail->next = token;
-    return token;
+    Token *tok = calloc(1, sizeof(Token));
+    tok->kind = kind;
+    tok->token_string = token_string;
+    tok->token_length = token_length;
+    tail->next = tok;
+    return tok;
 }
 
-bool prefix_matchs(char *p, char *query) {
-    return memcmp(p, query, strlen(query)) == 0;
+static bool prefix_matchs(char *p, char *query) {
+    return strncmp(p, query, strlen(query)) == 0;
 }
 
 // Tokenize |p| and returns token's head.
-Token *tokenize() {
-    char *p = user_input;
+static Token *tokenize() {
+    char *p = current_input;
     Token head;
     head.next = NULL;
-    Token *cur = &head;
+    Token *tail = &head;
 
     while (*p) {
         // Skips white-space characters.
@@ -117,33 +108,34 @@ Token *tokenize() {
             continue;
         }
 
-        // Multi-letter symbol
+        // Multi-letter punctuators
         if (prefix_matchs(p, "==") || prefix_matchs(p, "!=")
             || prefix_matchs(p, "<=") || prefix_matchs(p, ">=")) {
-            cur = create_new_token(cur, TOKEN_SYMBOL, p, 2);
+            tail = create_new_token(tail, TOKEN_SYMBOL, p, 2);
             p += 2;
             continue;
         }
 
-        // Single-letter symbol
+        // Single-letter punctuators
         if (strchr("+-*/()<>", *p)) {
-            cur = create_new_token(cur, TOKEN_SYMBOL, p, 1);
+            tail = create_new_token(tail, TOKEN_SYMBOL, p, 1);
             p++;
             continue;
         }
 
         // Integer literal
         if (isdigit(*p)) {
-            cur = create_new_token(cur, TOKEN_NUM, p, 0);
+            tail = create_new_token(tail, TOKEN_NUM, p, 0);
             char *q = p;
-            cur->val = strtol(p, &p, 10);
-            cur->token_length = p - q;
+            tail->val = strtoul(p, &p, 10);
+            tail->token_length = p - q;
             continue;
         }
-        compile_error_at(p, "Invalid token");
+
+        error_at(p, "invalid token.");
     }
 
-    create_new_token(cur, TOKEN_EOF, p, 0);
+    create_new_token(tail, TOKEN_EOF, p, 0);
     return head.next;
 }
 
@@ -158,21 +150,23 @@ void print_all_token(Token* head) {
     fprintf(stderr, "end. \n");
 }
 
+
 //
 // Parser
 //
+
 typedef enum {
-    NODE_ADD,
-    NODE_SUB,
-    NODE_MUL,
-    NODE_DIV,
-    NODE_EQ,
-    NODE_NE,
-    NODE_LT,
-    NODE_LE,
-    NODE_GT,
-    NODE_GE,
-    NODE_NUM,
+    NODE_ADD, // +
+    NODE_SUB, // -
+    NODE_MUL, // *
+    NODE_DIV, // /
+    NODE_EQ,  // ==
+    NODE_NE,  // !=
+    NODE_LT,  // <
+    NODE_LE,  // <=
+    NODE_GT,  // >
+    NODE_GE,  // >=
+    NODE_NUM, // Integer
 } NodeKind;
 
 // AST node type
@@ -181,137 +175,160 @@ struct Node {
     NodeKind kind;
     Node *lhs;
     Node *rhs;
-    int val;
+    int val; // Used if kind == NODE_NUM
 };
 
-Node *create_new_node(NodeKind kind) {
+static Node *create_new_node(NodeKind kind) {
     Node *node = calloc(1, sizeof(Node));
     node->kind = kind;
     return node;
 }
 
-Node *create_new_binary(NodeKind kind, Node *lhs, Node *rhs) {
+static Node *create_new_binary_node(NodeKind kind, Node *lhs, Node *rhs) {
     Node *node = create_new_node(kind);
     node->lhs = lhs;
     node->rhs = rhs;
     return node;
 }
 
-Node *create_new_number(int val) {
+static Node *create_new_num_node(int val) {
     Node *node = create_new_node(NODE_NUM);
     node->val = val;
     return node;
 }
 
-Node *expr();
-Node *equality();
-Node* relational();
-Node* add();
-Node *mul();
-Node *unary();
-Node *primary();
+static Node *expr(Token **rest, Token *tok);
+static Node *equality(Token **rest, Token *tok);
+static Node *relational(Token **rest, Token *tok);
+static Node *add(Token **rest, Token *tok);
+static Node *mul(Token **rest, Token *tok);
+static Node *unary(Token **rest, Token *tok);
+static Node *primary(Token **rest, Token *tok);
 
 // expr = equality
-Node *expr() {
-    return equality();
+static Node *expr(Token **rest, Token *tok) {
+    return equality(rest, tok);
 }
 
 // equality = relational ("==" relational | "!=" relational)*
-Node *equality() {
-    Node *node = relational();
+static Node *equality(Token **rest, Token *tok) {
+    Node *node = relational(&tok, tok);
+
     for (;;) {
-        if (consume("==")) {
-            node = create_new_binary(NODE_EQ, node, relational());
+        if (equal(tok, "==")) {
+            Node *rhs = relational(&tok, tok->next);
+            node = create_new_binary_node(NODE_EQ, node, rhs);
         }
-        else if (consume("!=")) {
-            node = create_new_binary(NODE_NE, node, relational());
+        else if (equal(tok, "!=")) {
+            Node *rhs = relational(&tok, tok->next);
+            node = create_new_binary_node(NODE_NE, node, rhs);
         }
         else {
+            *rest = tok;
             return node;
         }
     }
 }
 
 // relational = add ("<" add | "<=" add | ">" add | ">=" add)*
-Node *relational() {
-    Node *node = add();
+static Node *relational(Token **rest, Token *tok) {
+    Node *node = add(&tok, tok);
+
     for (;;) {
-        if (consume("<")) {
-            node = create_new_binary(NODE_LT, node, add());
+        if (equal(tok, "<")) {
+            Node *rhs = add(&tok, tok->next);
+            node = create_new_binary_node(NODE_LT, node, rhs);
         }
-        else if (consume("<=")) {
-            node = create_new_binary(NODE_LE, node, add());
+        else if (equal(tok, "<=")) {
+            Node *rhs = add(&tok, tok->next);
+            node = create_new_binary_node(NODE_LE, node, rhs);
         }
-        else if (consume(">")) {
-            node = create_new_binary(NODE_GT, node, add());
+        else if (equal(tok, ">")) {
+            Node *rhs = add(&tok, tok->next);
+            node = create_new_binary_node(NODE_GT, node, rhs);
         }
-        else if (consume(">=")) {
-            node = create_new_binary(NODE_GE, node, add());
+        else if (equal(tok, ">=")) {
+            Node *rhs = add(&tok, tok->next);
+            node = create_new_binary_node(NODE_GE, node, rhs);
         }
         else {
+            *rest = tok;
             return node;
         }
     }
 }
 
 // add = mul ("+" mul | "-" mul)*
-Node *add() {
-    Node *node = mul();
+static Node *add(Token **rest, Token *tok) {
+    Node *node = mul(&tok, tok);
 
     for (;;) {
-        if (consume("+")) {
-            node = create_new_binary(NODE_ADD, node, mul());
+        if (equal(tok, "+")) {
+            Node *rhs = mul(&tok, tok->next);
+            node = create_new_binary_node(NODE_ADD, node, rhs);
         }
-        else if (consume("-")) {
-            node = create_new_binary(NODE_SUB, node, mul());
+        else if (equal(tok, "-")) {
+            Node *rhs = mul(&tok, tok->next);
+            node = create_new_binary_node(NODE_SUB, node, rhs);
         }
         else {
+            *rest = tok;
             return node;
         }
     }
 }
 
 // mul = unary ("*" unary | "/" unary)*
-Node *mul() {
-    Node *node = unary();
+static Node *mul(Token **rest, Token *tok) {
+    Node *node = unary(&tok, tok);
+
     for (;;) {
-        if (consume("*")) {
-            node = create_new_binary(NODE_MUL, node, unary());
+        if (equal(tok, "*")) {
+            Node *rhs = unary(&tok, tok->next);
+            node = create_new_binary_node(NODE_MUL, node, rhs);
         }
-        else if (consume("/")) {
-            node = create_new_binary(NODE_DIV, node, unary());
+        else if (equal(tok, "/")) {
+            Node *rhs = unary(&tok, tok->next);
+            node = create_new_binary_node(NODE_DIV, node, rhs);
         }
         else {
+            *rest = tok;
             return node;
         }
     }
 }
 
-// unary = ("+" | "-")? unary | primary
-Node *unary() {
-    if (consume("+")) {
-        return unary();
+// unary = ("+" | "-") unary
+//       | primary
+static Node *unary(Token **rest, Token *tok) {
+    if (equal(tok, "+")) {
+        return unary(rest, tok->next);
     }
-    if (consume("-")) {
-        return create_new_binary(NODE_SUB, create_new_number(0), unary());
+    else if (equal(tok, "-")) {
+        return create_new_binary_node(
+            NODE_SUB, create_new_num_node(0), unary(rest, tok->next));
     }
-    return primary();
+    return primary(rest, tok);
 }
 
 // primary = "(" expr ")" | num
-Node *primary() {
-    if (consume("(")) {
-        Node *node = expr();
-        expect(")");
+static Node *primary(Token **rest, Token *tok) {
+    if (equal(tok, "(")) {
+        Node *node = expr(&tok, tok->next);
+        *rest = skip(tok, ")");
         return node;
     }
-    return create_new_number(expect_number());
+
+    Node *node = create_new_num_node(take_number(tok));
+    *rest = tok->next;
+    return node;
 }
 
 //
 // Code generator
 //
-void generate_asm(Node *node) {
+
+static void generate_asm(Node *node) {
     if (node->kind == NODE_NUM) {
         printf("  push %d\n", node->val);
         return;
@@ -380,14 +397,17 @@ void generate_asm(Node *node) {
 
 
 int main(int argc, char **argv) {
-    if (argc != 2) {
-        error("%s: invalid number of arguments", argv[0]);
-    }
+    if (argc != 2)
+        error("%s: invalid number of arguments.", argv[0]);
 
     // Tokenize and parse.
-    user_input = argv[1];
-    current_token = tokenize();
-    Node *node = expr();
+    current_input = argv[1];
+    Token *tok = tokenize();
+
+    Node *node = expr(&tok, tok);
+
+    if (tok->kind != TOKEN_EOF)
+        error_tok(tok, "extra token.");
 
     // Print out the first half of assembly.
     printf(".intel_syntax noprefix\n");
@@ -401,5 +421,6 @@ int main(int argc, char **argv) {
     // program exit code.
     printf("  pop rax\n");
     printf("  ret\n");
+
     return 0;
 }
