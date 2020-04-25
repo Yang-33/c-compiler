@@ -1,78 +1,89 @@
 #include "9cc.h"
 
+static int top;
+static char *reg(int idx) {
+    static char *r[] = { "r10", "r11", "r12", "r13", "r14", "r15" };
+    if (idx < 0 || sizeof(r) / sizeof(*r) <= (unsigned int)idx)
+        error("register out of range: %d.", idx);
+    return r[idx];
+}
+
+
 static void generate_asm(Node *node) {
     if (node->kind == NODE_NUM) {
-        printf("  push %d\n", node->val);
+        printf("  mov %s, %d\n", reg(top++), node->val);
         return;
     }
 
     generate_asm(node->lhs);
     generate_asm(node->rhs);
 
-    printf("  pop rdi\n");
-    printf("  pop rax\n");
+    char *r_lhs = reg(top - 2);
+    char *r_rhs = reg(top - 1);
+    top--;
 
     switch (node->kind) {
     case NODE_ADD:
-        printf("  add rax, rdi\n");
+        printf("  add %s, %s\n", r_lhs, r_rhs);
         break;
     case NODE_SUB:
-        printf("  sub rax, rdi\n");
+        printf("  sub %s, %s\n", r_lhs, r_rhs);
         break;
     case NODE_MUL:
-        printf("  imul rax, rdi\n");
+        printf("  imul %s, %s\n", r_lhs, r_rhs);
         break;
     case NODE_DIV:
+        printf("  mov rax, %s\n", r_lhs);
         // RDX:RAX <- sign-extend of RAX.
         printf("  cqo\n");
         // Signed divide RDX:RAX by rdi with result stored in RAX(quotient),
         // RDX(remainder)
-        printf("  idiv rdi\n");
+        printf("  idiv %s\n", r_rhs);
+        printf("  mov %s, rax\n", r_lhs);
         break;
     case NODE_EQ:
-        printf("  cmp rax, rdi\n");
+        printf("  cmp %s, %s\n", r_lhs, r_rhs);
         printf("  sete al\n");
-        printf("  movzb rax, al\n");
+        printf("  movzx %s, al\n", r_lhs);
         break;
     case NODE_NE:
-        printf("  cmp rax, rdi\n");
+        printf("  cmp %s, %s\n", r_lhs, r_rhs);
         printf("  setne al\n");
-        printf("  movzb rax, al\n");
+        printf("  movzx %s, al\n", r_lhs);
         break;
     case NODE_LT:
-        printf("  cmp rax, rdi\n");
+        printf("  cmp %s, %s\n", r_lhs, r_rhs);
         printf("  setl al\n");
-        printf("  movzb rax, al\n");
+        printf("  movzx %s, al\n", r_lhs);
         break;
     case NODE_LE:
-        printf("  cmp rax, rdi\n");
+        printf("  cmp %s, %s\n", r_lhs, r_rhs);
         printf("  setle al\n");
-        printf("  movzb rax, al\n");
+        printf("  movzx %s, al\n", r_lhs);
         break;
     case NODE_GT:
-        printf("  cmp rax, rdi\n");
+        printf("  cmp %s, %s\n", r_lhs, r_rhs);
         printf("  setg al\n");
-        printf("  movzb rax, al\n");
+        printf("  movzx %s, al\n", r_lhs);
         break;
     case NODE_GE:
-        printf("  cmp rax, rdi\n");
+        printf("  cmp %s, %s\n", r_lhs, r_rhs);
         printf("  setge al\n");
-        printf("  movzb rax, al\n");
+        printf("  movzx %s, al\n", r_lhs);
         break;
     case NODE_NUM:
+    case NODE_SEMICOLON:
         error("Internal error: invalid node. kind:= %d", node->kind);
         break;
-    case NODE_SEMICOLON:
         break;
     }
-
-    printf("  push rax\n");
 }
 
 static void generate_statement(Node *node) {
     if (node->kind == NODE_SEMICOLON) {
         generate_asm(node->lhs);
-        printf("  pop rax\n");
+        // RAX represents program exit code.
+        printf("  mov rax, %s\n", reg(--top));
     }
     else {
         error("invalid statement");
@@ -86,13 +97,21 @@ void codegen(Node *node) {
     printf(".global main\n");
     printf("main:\n");
 
+    // Save callee-saved registers.
+    printf("  push r12\n");
+    printf("  push r13\n");
+    printf("  push r14\n");
+    printf("  push r15\n");
+
     // Traverse the AST to emit assembly.
     for (Node *n = node; n; n = n->next) {
         generate_statement(n);
+        assert(top == 0);
     }
 
-    // A result must be at the top of the stack, so pop it to RAX to make it a
-    // program exit code.
-    // printf("  pop rax\n");
+    printf("  pop r15\n");
+    printf("  pop r14\n");
+    printf("  pop r13\n");
+    printf("  pop r12\n");
     printf("  ret\n");
 }
