@@ -40,9 +40,16 @@ static Node *mul(Token **rest, Token *tok);
 static Node *unary(Token **rest, Token *tok);
 static Node *primary(Token **rest, Token *tok);
 
-// statement = expr;
+// statement = "return" expr ";"
+//           | expr ";"
 static Node *statement(Token **rest, Token *tok) {
-    Node *node = create_new_unary_node(NODE_SEMICOLON, expr(&tok, tok));
+    Node *node;
+    if (equal(tok, "return")) {
+        node = create_new_unary_node(NODE_RETURN, expr(&tok, tok->next));
+    }
+    else {
+        node = create_new_unary_node(NODE_SEMICOLON, expr(&tok, tok));
+    }
     *rest = skip(tok, ";");
     return node;
 }

@@ -63,10 +63,18 @@ static bool prefix_matchs(char *p, char *query) {
     return strncmp(p, query, strlen(query)) == 0;
 }
 
+static bool is_alpha_or_underscore(char c) {
+    return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || c == '_';
+}
+
+static bool is_alnum_or_underscore(char c) {
+    return is_alpha_or_underscore(c) || ('0' <= c && c <= '9');
+}
+
+
 // Tokenize |p| and returns token's head.
 Token *tokenize(char *p) {
     current_input = p;
-
     Token head;
     head.next = NULL;
     Token *tail = &head;
@@ -75,6 +83,13 @@ Token *tokenize(char *p) {
         // Skips white-space characters.
         if (isspace(*p)) {
             p++;
+            continue;
+        }
+
+        // Keyword
+        if (prefix_matchs(p, "return") && !is_alnum_or_underscore(p[6])) {
+            tail = create_new_token(tail, TOKEN_SYMBOL, p, 6);
+            p += 6;
             continue;
         }
 

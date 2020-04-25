@@ -71,8 +71,9 @@ static void generate_asm(Node *node) {
         printf("  setge al\n");
         printf("  movzx %s, al\n", r_lhs);
         break;
-    case NODE_NUM:
     case NODE_SEMICOLON:
+    case NODE_RETURN:
+    case NODE_NUM:
         error("Internal error: invalid node. kind:= %d", node->kind);
         break;
         break;
@@ -82,8 +83,14 @@ static void generate_asm(Node *node) {
 static void generate_statement(Node *node) {
     if (node->kind == NODE_SEMICOLON) {
         generate_asm(node->lhs);
+        top--;
+    }
+    else if (node->kind == NODE_RETURN) {
+        generate_asm(node->lhs);
         // RAX represents program exit code.
         printf("  mov rax, %s\n", reg(--top));
+        printf("  jmp .L.return\n");
+        return;
     }
     else {
         error("invalid statement");
@@ -109,6 +116,7 @@ void codegen(Node *node) {
         assert(top == 0);
     }
 
+    printf(".L.return:\n");
     printf("  pop r15\n");
     printf("  pop r14\n");
     printf("  pop r13\n");

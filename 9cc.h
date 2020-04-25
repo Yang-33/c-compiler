@@ -47,6 +47,7 @@ typedef enum {
     NODE_LE,         // <=
     NODE_GT,         // >
     NODE_GE,         // >=
+    NODE_RETURN,     // return
     NODE_SEMICOLON,  // ;
     NODE_NUM,        // Integer
 } NodeKind;
