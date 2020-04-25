@@ -1,7 +1,11 @@
-CFLAGS=-std=c11 -g -static -Wall -Wextra
+CFLAGS=-std=c11 -g -static -Wall -Wextra -fno-common
+SRCS=$(wildcard *.c)
+OBJS=$(SRCS:.c=.o)
 
-9cc: main.o
-	$(CC) -o $@ $? $(LDFLAGS)
+9cc: $(OBJS)
+	$(CC) -o $@ $(OBJS) $(LDFLAGS)
+
+$(OBJS): 9cc.h
 
 test: 9cc
 	./test.sh
