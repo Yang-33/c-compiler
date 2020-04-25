@@ -13,6 +13,12 @@ static Node *create_new_binary_node(NodeKind kind, Node *lhs, Node *rhs) {
     return node;
 }
 
+static Node *create_new_unary_node(NodeKind kind, Node *lhs) {
+    Node *node = create_new_node(kind);
+    node->lhs = lhs;
+    return node;
+}
+
 static Node *create_new_num_node(int val) {
     Node *node = create_new_node(NODE_NUM);
     node->val = val;
@@ -33,6 +39,13 @@ static Node *add(Token **rest, Token *tok);
 static Node *mul(Token **rest, Token *tok);
 static Node *unary(Token **rest, Token *tok);
 static Node *primary(Token **rest, Token *tok);
+
+// statement = expr;
+static Node *statement(Token **rest, Token *tok) {
+    Node *node = create_new_unary_node(NODE_SEMICOLON, expr(&tok, tok));
+    *rest = skip(tok, ";");
+    return node;
+}
 
 // expr = equality
 static Node *expr(Token **rest, Token *tok) {
@@ -153,10 +166,14 @@ static Node *primary(Token **rest, Token *tok) {
     return node;
 }
 
+
+
 Node *parse(Token *tok) {
-    Node *node = expr(&tok, tok);
-    if (tok->kind != TOKEN_EOF) {
-        error_tok(tok, "extra token");
+    Node head;
+    Node *tail = &head;
+    while (tok->kind != TOKEN_EOF) {
+        tail = tail->next = statement(&tok, tok);
     }
-    return node;
+
+    return head.next;
 }

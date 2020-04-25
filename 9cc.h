@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -36,23 +37,25 @@ void print_all_token(Token *head);
 //
 
 typedef enum {
-    NODE_ADD, // +
-    NODE_SUB, // -
-    NODE_MUL, // *
-    NODE_DIV, // /
-    NODE_EQ,  // ==
-    NODE_NE,  // !=
-    NODE_LT,  // <
-    NODE_LE,  // <=
-    NODE_GT,  // >
-    NODE_GE,  // >=
-    NODE_NUM, // Integer
+    NODE_ADD,        // +
+    NODE_SUB,        // -
+    NODE_MUL,        // *
+    NODE_DIV,        // /
+    NODE_EQ,         // ==
+    NODE_NE,         // !=
+    NODE_LT,         // <
+    NODE_LE,         // <=
+    NODE_GT,         // >
+    NODE_GE,         // >=
+    NODE_SEMICOLON,  // ;
+    NODE_NUM,        // Integer
 } NodeKind;
 
 // AST node type
 typedef struct Node Node;
 struct Node {
     NodeKind kind;
+    Node *next; // Divided by semicolon
     Node *lhs;
     Node *rhs;
     int val; // Used if kind == NODE_NUM

@@ -62,10 +62,23 @@ static void generate_asm(Node *node) {
     case NODE_NUM:
         error("Internal error: invalid node. kind:= %d", node->kind);
         break;
+    case NODE_SEMICOLON:
+        break;
     }
 
     printf("  push rax\n");
 }
+
+static void generate_statement(Node *node) {
+    if (node->kind == NODE_SEMICOLON) {
+        generate_asm(node->lhs);
+        printf("  pop rax\n");
+    }
+    else {
+        error("invalid statement");
+    }
+}
+
 
 void codegen(Node *node) {
     // Print out the first half of assembly.
@@ -74,10 +87,12 @@ void codegen(Node *node) {
     printf("main:\n");
 
     // Traverse the AST to emit assembly.
-    generate_asm(node);
+    for (Node *n = node; n; n = n->next) {
+        generate_statement(n);
+    }
 
     // A result must be at the top of the stack, so pop it to RAX to make it a
     // program exit code.
-    printf("  pop rax\n");
+    // printf("  pop rax\n");
     printf("  ret\n");
 }
