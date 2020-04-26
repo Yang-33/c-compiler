@@ -94,9 +94,12 @@ Token *tokenize(char *p) {
         }
 
         // Identifier
-        if ('a' <= *p && *p <= 'z') {
-            tail = create_new_token(tail, TOKEN_IDENTIFIER, p, 1);
-            p++;
+        if (is_alpha_or_underscore(*p)) {
+            char *q = p;
+            while (is_alnum_or_underscore(*p)) {
+                p++;
+            }
+            tail = create_new_token(tail, TOKEN_IDENTIFIER, q, p - q);
             continue;
         }
 

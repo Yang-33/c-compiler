@@ -10,6 +10,7 @@
 // tokenize.c
 //
 
+// Token
 typedef enum {
     TOKEN_SYMBOL,
     TOKEN_IDENTIFIER,
@@ -37,6 +38,15 @@ void print_all_token(Token *head);
 // parse.c
 //
 
+// Local variable
+typedef struct Var Var;
+struct Var {
+    Var *next;
+    char *name; // Variable name
+    int offset; // Offset from RBP
+};
+
+// AST node
 typedef enum {
     NODE_ADD,        // +
     NODE_SUB,        // -
@@ -59,17 +69,24 @@ typedef enum {
 typedef struct Node Node;
 struct Node {
     NodeKind kind;
-    Node *next; // Divided by semicolon
+    Node *next;    // Divided by semicolon
     Node *lhs;
     Node *rhs;
-    char name; // Used if kind == NODE_VAR
-    int val; // Used if kind == NODE_NUM
+    Var *var;      // Used if kind == NODE_VAR
+    int val;       // Used if kind == NODE_NUM
 };
 
-Node *parse(Token *tok);
+
+typedef struct Function Function;
+struct Function {
+    Node *node;
+    Var *locals;
+    int stack_size;
+};
+Function *parse(Token *tok);
 
 //
 // codegen.c
 //
 
-void codegen(Node *node);
+void codegen(Function *prog);

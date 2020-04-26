@@ -1,5 +1,28 @@
 #include "9cc.h"
 
+// All local variable instances created during parsing are accumulated to this
+// list.
+Var *locals;
+
+char * mystrndup(const char *s, size_t n) {
+    char *new = (char *)malloc(n + 1);
+    if (new == NULL) {
+        return NULL;
+    }
+    new[n] = '\0';
+    return (char *)memcpy(new, s, n);
+}
+
+static Var *find_var(Token *tok) {
+    for (Var *var = locals; var; var = var->next) {
+        if (strlen(var->name) == tok->token_length
+            && !strncmp(tok->token_string, var->name, tok->token_length)) {
+            return var;
+        }
+    }
+    return NULL;
+}
+
 static Node *create_new_node(NodeKind kind) {
     Node *node = calloc(1, sizeof(Node));
     node->kind = kind;
@@ -25,10 +48,19 @@ static Node *create_new_num_node(int val) {
     return node;
 }
 
-static Node *create_new_var_node(char name) {
+static Node *create_new_var_node(Var *var) {
     Node *node = create_new_node(NODE_VAR);
-    node->name = name;
+    node->var = var;
     return node;
+}
+
+static Var *create_new_local_var(char *name) {
+    Var *var = calloc(1, sizeof(Var));
+    var->name = name;
+    var->next = locals;
+    locals = var;
+    // offset will be set after all tokens are parsed.
+    return  var;
 }
 
 // Ensures that the current token is |TOKEN_NUM|.
@@ -185,25 +217,32 @@ static Node *primary(Token **rest, Token *tok) {
         return node;
     }
 
-    Node *node;
     if (tok->kind == TOKEN_IDENTIFIER) {
-        node = create_new_var_node(*tok->token_string);
+        Var *var = find_var(tok);
+        if (!var) {
+            var = create_new_local_var(
+                mystrndup(tok->token_string, tok->token_length));
+        }
+        *rest = tok->next;
+        return create_new_var_node(var);
     }
-    else {
-        node = create_new_num_node(take_number(tok));
-    }
+    Node *node = create_new_num_node(take_number(tok));
     *rest = tok->next;
     return node;
 }
 
 
 
-Node *parse(Token *tok) {
+Function *parse(Token *tok) {
     Node head;
     Node *tail = &head;
     while (tok->kind != TOKEN_EOF) {
         tail = tail->next = statement(&tok, tok);
     }
 
-    return head.next;
+    Function *prog = calloc(1, sizeof(Function));
+    prog->node = head.next;
+    prog->locals = locals;
+    // Function.stack_size will be set after all tokens are parsed.
+    return prog;
 }
