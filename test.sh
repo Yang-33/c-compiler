@@ -56,4 +56,8 @@ assert 0 'return 1>=2;'
 
 assert 3 '1; 2; return 3;'
 
+assert 3 'a=3; return a;'
+assert 8 'a=3; z=5; return a+z;'
+assert 7 'a=b=3; return a+b+1;';
+
 echo OK

@@ -25,6 +25,12 @@ static Node *create_new_num_node(int val) {
     return node;
 }
 
+static Node *create_new_var_node(char name) {
+    Node *node = create_new_node(NODE_VAR);
+    node->name = name;
+    return node;
+}
+
 // Ensures that the current token is |TOKEN_NUM|.
 static int take_number(Token *tok) {
     if (tok->kind != TOKEN_NUM)
@@ -33,6 +39,7 @@ static int take_number(Token *tok) {
 }
 
 static Node *expr(Token **rest, Token *tok);
+static Node *assign(Token **rest, Token *tok);
 static Node *equality(Token **rest, Token *tok);
 static Node *relational(Token **rest, Token *tok);
 static Node *add(Token **rest, Token *tok);
@@ -54,9 +61,19 @@ static Node *statement(Token **rest, Token *tok) {
     return node;
 }
 
-// expr = equality
+// expr = assign
 static Node *expr(Token **rest, Token *tok) {
-    return equality(rest, tok);
+    return assign(rest, tok);
+}
+
+// assign = equality ("=" assign)?
+static Node *assign(Token **rest, Token *tok) {
+    Node *node = equality(&tok, tok);
+    if (equal(tok, "=")) {
+        node = create_new_binary_node(NODE_ASSIGN, node, assign(&tok, tok->next));
+    }
+    *rest = tok;
+    return node;
 }
 
 // equality = relational ("==" relational | "!=" relational)*
@@ -160,7 +177,7 @@ static Node *unary(Token **rest, Token *tok) {
     return primary(rest, tok);
 }
 
-// primary = "(" expr ")" | num
+// primary = "(" expr ")" | num | idnetifier
 static Node *primary(Token **rest, Token *tok) {
     if (equal(tok, "(")) {
         Node *node = expr(&tok, tok->next);
@@ -168,7 +185,13 @@ static Node *primary(Token **rest, Token *tok) {
         return node;
     }
 
-    Node *node = create_new_num_node(take_number(tok));
+    Node *node;
+    if (tok->kind == TOKEN_IDENTIFIER) {
+        node = create_new_var_node(*tok->token_string);
+    }
+    else {
+        node = create_new_num_node(take_number(tok));
+    }
     *rest = tok->next;
     return node;
 }

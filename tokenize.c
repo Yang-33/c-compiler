@@ -93,6 +93,13 @@ Token *tokenize(char *p) {
             continue;
         }
 
+        // Identifier
+        if ('a' <= *p && *p <= 'z') {
+            tail = create_new_token(tail, TOKEN_IDENTIFIER, p, 1);
+            p++;
+            continue;
+        }
+
         // Multi-letter punctuators
         if (prefix_matchs(p, "==") || prefix_matchs(p, "!=")
             || prefix_matchs(p, "<=") || prefix_matchs(p, ">=")) {
@@ -102,7 +109,7 @@ Token *tokenize(char *p) {
         }
 
         // Single-letter punctuators
-        if (strchr("+-*/()<>;", *p)) {
+        if (strchr("+-*/()<>=;", *p)) {
             tail = create_new_token(tail, TOKEN_SYMBOL, p, 1);
             p++;
             continue;

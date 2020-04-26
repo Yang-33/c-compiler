@@ -12,6 +12,7 @@
 
 typedef enum {
     TOKEN_SYMBOL,
+    TOKEN_IDENTIFIER,
     TOKEN_NUM,
     TOKEN_EOF,
 } TokenKind;
@@ -47,8 +48,10 @@ typedef enum {
     NODE_LE,         // <=
     NODE_GT,         // >
     NODE_GE,         // >=
+    NODE_ASSIGN,     // =
     NODE_RETURN,     // return
     NODE_SEMICOLON,  // ;
+    NODE_VAR,        // Variable
     NODE_NUM,        // Integer
 } NodeKind;
 
@@ -59,6 +62,7 @@ struct Node {
     Node *next; // Divided by semicolon
     Node *lhs;
     Node *rhs;
+    char name; // Used if kind == NODE_VAR
     int val; // Used if kind == NODE_NUM
 };
 

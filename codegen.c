@@ -8,19 +8,51 @@ static char *reg(int idx) {
     return r[idx];
 }
 
+// Pushes the given node's address to the stack.
+static void generate_address(Node *node) {
+    if (node->kind == NODE_VAR) {
+        int offset = (node->name - 'a' + 1) * 8;
+        offset += 32; // for callee-saved registers
+        printf("  lea %s, [rbp-%d]\n", reg(top++), offset);
+        return;
+    }
+
+    error("not an lvalue");
+}
+
+static void load(void) {
+    printf("  mov %s, [%s]\n", reg(top - 1), reg(top - 1));
+}
+
+static void store(void) {
+    printf("  mov [%s], %s\n", reg(top - 1), reg(top - 2));
+    --top;
+}
 
 static void generate_asm(Node *node) {
     if (node->kind == NODE_NUM) {
         printf("  mov %s, %d\n", reg(top++), node->val);
         return;
     }
+    else if (node->kind == NODE_VAR) {
+        generate_address(node);
+        load();
+        return;
+    }
+    else if (node->kind == NODE_ASSIGN) {
+        generate_asm(node->rhs);
+        generate_address(node->lhs);
+        store();
+        return;
+    }
+
 
     generate_asm(node->lhs);
     generate_asm(node->rhs);
 
     char *r_lhs = reg(top - 2);
     char *r_rhs = reg(top - 1);
-    top--;
+    --top;
 
     switch (node->kind) {
     case NODE_ADD:
@@ -73,9 +105,10 @@ static void generate_asm(Node *node) {
         break;
     case NODE_SEMICOLON:
     case NODE_RETURN:
+    case NODE_ASSIGN:
+    case NODE_VAR:
     case NODE_NUM:
         error("Internal error: invalid node. kind:= %d", node->kind);
-        break;
         break;
     }
 }
@@ -83,7 +116,7 @@ static void generate_asm(Node *node) {
 static void generate_statement(Node *node) {
     if (node->kind == NODE_SEMICOLON) {
         generate_asm(node->lhs);
-        top--;
+        --top;
     }
     else if (node->kind == NODE_RETURN) {
         generate_asm(node->lhs);
@@ -104,11 +137,14 @@ void codegen(Node *node) {
     printf(".global main\n");
     printf("main:\n");
 
-    // Save callee-saved registers.
-    printf("  push r12\n");
-    printf("  push r13\n");
-    printf("  push r14\n");
-    printf("  push r15\n");
+    // Prologue. r12-15 are callee-saved registers.
+    printf("  push rbp\n");
+    printf("  mov rbp, rsp\n");
+    printf("  sub rsp, 240\n");
+    printf("  mov [rbp-8], r12\n");
+    printf("  mov [rbp-16], r13\n");
+    printf("  mov [rbp-24], r14\n");
+    printf("  mov [rbp-32], r15\n");
 
     // Traverse the AST to emit assembly.
     for (Node *n = node; n; n = n->next) {
@@ -116,10 +152,13 @@ void codegen(Node *node) {
         assert(top == 0);
     }
 
+    // Epilogue
     printf(".L.return:\n");
-    printf("  pop r15\n");
-    printf("  pop r14\n");
-    printf("  pop r13\n");
-    printf("  pop r12\n");
+    printf("  mov r12, [rbp-8]\n");
+    printf("  mov r13, [rbp-16]\n");
+    printf("  mov r14, [rbp-24]\n");
+    printf("  mov r15, [rbp-32]\n");
+    printf("  mov rsp, rbp\n");
+    printf("  pop rbp\n");
     printf("  ret\n");
 }
