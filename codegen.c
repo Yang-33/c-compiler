@@ -1,6 +1,7 @@
 #include "9cc.h"
 
 static int top;
+static int labelseq = 1;
 static char *reg(int idx) {
     static char *r[] = { "r10", "r11", "r12", "r13", "r14", "r15" };
     if (idx < 0 || sizeof(r) / sizeof(*r) <= (unsigned int)idx)
@@ -101,9 +102,10 @@ static void generate_asm(Node *node) {
         printf("  setge al\n");
         printf("  movzx %s, al\n", r_lhs);
         break;
-    case NODE_SEMICOLON:
+    case NODE_EXPR_STATEMENT:
     case NODE_RETURN:
     case NODE_ASSIGN:
+    case NODE_IF:
     case NODE_VAR:
     case NODE_NUM:
         error("Internal error: invalid node. kind:= %d", node->kind);
@@ -112,7 +114,7 @@ static void generate_asm(Node *node) {
 }
 
 static void generate_statement(Node *node) {
-    if (node->kind == NODE_SEMICOLON) {
+    if (node->kind == NODE_EXPR_STATEMENT) {
         generate_asm(node->lhs);
         --top;
     }
@@ -122,6 +124,26 @@ static void generate_statement(Node *node) {
         printf("  mov rax, %s\n", reg(--top));
         printf("  jmp .L.return\n");
         return;
+    }
+    else if (node->kind == NODE_IF) {
+        int seq = labelseq++;
+        if (node->els) {
+            generate_asm(node->cond);
+            printf("  cmp %s, 0\n", reg(--top));
+            printf("  je   .L.else.%d\n", seq);
+            generate_statement(node->then);
+            printf("  jmp  .L.end.%d\n", seq);
+            printf(".L.else.%d:\n", seq);
+            generate_statement(node->els);
+            printf(".L.end.%d:\n", seq);
+        }
+        else {
+            generate_asm(node->cond);
+            printf("  cmp %s, 0\n", reg(--top));
+            printf("  je   .L.end.%d\n", seq);
+            generate_statement(node->then);
+            printf(".L.end.%d:\n", seq);
+        }
     }
     else {
         error("invalid statement");

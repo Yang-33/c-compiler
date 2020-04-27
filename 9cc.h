@@ -48,21 +48,22 @@ struct Var {
 
 // AST node
 typedef enum {
-    NODE_ADD,        // +
-    NODE_SUB,        // -
-    NODE_MUL,        // *
-    NODE_DIV,        // /
-    NODE_EQ,         // ==
-    NODE_NE,         // !=
-    NODE_LT,         // <
-    NODE_LE,         // <=
-    NODE_GT,         // >
-    NODE_GE,         // >=
-    NODE_ASSIGN,     // =
-    NODE_RETURN,     // return
-    NODE_SEMICOLON,  // ;
-    NODE_VAR,        // Variable
-    NODE_NUM,        // Integer
+    NODE_ADD,             // +
+    NODE_SUB,             // -
+    NODE_MUL,             // *
+    NODE_DIV,             // /
+    NODE_EQ,              // ==
+    NODE_NE,              // !=
+    NODE_LT,              // <
+    NODE_LE,              // <=
+    NODE_GT,              // >
+    NODE_GE,              // >=
+    NODE_ASSIGN,          // =
+    NODE_RETURN,          // return
+    NODE_IF,              // if
+    NODE_EXPR_STATEMENT,  // Expression statement
+    NODE_VAR,             // Variable
+    NODE_NUM,             // Integer
 } NodeKind;
 
 // AST node type
@@ -70,8 +71,15 @@ typedef struct Node Node;
 struct Node {
     NodeKind kind;
     Node *next;    // Divided by semicolon
+
     Node *lhs;
     Node *rhs;
+
+    // "if statement"
+    Node *cond;
+    Node *then;
+    Node *els;
+
     Var *var;      // Used if kind == NODE_VAR
     int val;       // Used if kind == NODE_NUM
 };

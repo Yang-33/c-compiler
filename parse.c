@@ -4,7 +4,7 @@
 // list.
 Var *locals;
 
-char * mystrndup(const char *s, size_t n) {
+char *mystrndup(const char *s, size_t n) {
     char *new = (char *)malloc(n + 1);
     if (new == NULL) {
         return NULL;
@@ -80,15 +80,27 @@ static Node *unary(Token **rest, Token *tok);
 static Node *primary(Token **rest, Token *tok);
 
 // statement = "return" expr ";"
+//           | "if" "(" expr ")" statement ("else" statement)?
 //           | expr ";"
 static Node *statement(Token **rest, Token *tok) {
-    Node *node;
     if (equal(tok, "return")) {
-        node = create_new_unary_node(NODE_RETURN, expr(&tok, tok->next));
+        Node *node = create_new_unary_node(NODE_RETURN, expr(&tok, tok->next));
+        *rest = skip(tok, ";");
+        return node;
     }
-    else {
-        node = create_new_unary_node(NODE_SEMICOLON, expr(&tok, tok));
+    if (equal(tok, "if")) {
+        Node *node = create_new_node(NODE_IF);
+        tok = skip(tok->next, "(");
+        node->cond = expr(&tok, tok);
+        tok = skip(tok, ")");
+        node->then = statement(&tok, tok);
+        if (equal(tok, "else")) {
+            node->els = statement(&tok, tok->next);
+        }
+        *rest = tok;
+        return node;
     }
+    Node *node = create_new_unary_node(NODE_EXPR_STATEMENT, expr(&tok, tok));
     *rest = skip(tok, ";");
     return node;
 }

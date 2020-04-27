@@ -71,6 +71,16 @@ static bool is_alnum_or_underscore(char c) {
     return is_alpha_or_underscore(c) || ('0' <= c && c <= '9');
 }
 
+static int is_keyword(char *p) {
+    static char *kw[] = { "return","if","else" };
+    for (int i = 0; i < (int)(sizeof(kw) / sizeof(*kw)); ++i) {
+        int n = strlen(kw[i]);
+        if (prefix_matchs(p, kw[i]) && !is_alnum_or_underscore(p[n])) {
+            return n;
+        }
+    }
+    return false;
+}
 
 // Tokenize |p| and returns token's head.
 Token *tokenize(char *p) {
@@ -87,9 +97,10 @@ Token *tokenize(char *p) {
         }
 
         // Keyword
-        if (prefix_matchs(p, "return") && !is_alnum_or_underscore(p[6])) {
-            tail = create_new_token(tail, TOKEN_SYMBOL, p, 6);
-            p += 6;
+        if (is_keyword(p)) {
+            int keyword_length = is_keyword(p);
+            tail = create_new_token(tail, TOKEN_SYMBOL, p, keyword_length);
+            p += keyword_length;
             continue;
         }
 
