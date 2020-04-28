@@ -4,6 +4,16 @@
 // list.
 Var *locals;
 
+static Node *multi_statement(Token **rest, Token *tok);
+static Node *expr(Token **rest, Token *tok);
+static Node *assign(Token **rest, Token *tok);
+static Node *equality(Token **rest, Token *tok);
+static Node *relational(Token **rest, Token *tok);
+static Node *add(Token **rest, Token *tok);
+static Node *mul(Token **rest, Token *tok);
+static Node *unary(Token **rest, Token *tok);
+static Node *primary(Token **rest, Token *tok);
+
 char *mystrndup(const char *s, size_t n) {
     char *new = (char *)malloc(n + 1);
     if (new == NULL) {
@@ -70,19 +80,11 @@ static int take_number(Token *tok) {
     return tok->val;
 }
 
-static Node *expr(Token **rest, Token *tok);
-static Node *assign(Token **rest, Token *tok);
-static Node *equality(Token **rest, Token *tok);
-static Node *relational(Token **rest, Token *tok);
-static Node *add(Token **rest, Token *tok);
-static Node *mul(Token **rest, Token *tok);
-static Node *unary(Token **rest, Token *tok);
-static Node *primary(Token **rest, Token *tok);
-
 // statement = "return" expr ";"
 //           | "if" "(" expr ")" statement ("else" statement)?
 //           | "for" "(" expr? ";" expr? ";" expr? ")" statement
 //           | "while" "(" expr ")" statement
+//           | "{" multi_statement "}"
 //           | expr ";"
 static Node *statement(Token **rest, Token *tok) {
     if (equal(tok, "return")) {
@@ -137,8 +139,30 @@ static Node *statement(Token **rest, Token *tok) {
         node->then = statement(rest, tok);
         return node;
     }
+
+    if (equal(tok, "{")) {
+        Node *node = multi_statement(&tok, tok->next);
+        tok = skip(tok, "}");
+        *rest = tok;
+        return node;
+    }
+
     Node *node = create_new_unary_node(NODE_EXPR_STATEMENT, expr(&tok, tok));
     *rest = skip(tok, ";");
+    return node;
+}
+
+// multi_statement = statement*
+static Node *multi_statement(Token **rest, Token *tok) {
+    Node head;
+    Node *tail = &head;
+    while (!equal(tok, "}")) {
+        tail = tail->next = statement(&tok, tok);
+    }
+
+    Node *node = create_new_node(NODE_BLOCK);
+    node->body = head.next;
+    *rest = tok;
     return node;
 }
 
@@ -281,16 +305,13 @@ static Node *primary(Token **rest, Token *tok) {
 }
 
 
-
+// program = "{" multi_statement "}"
 Function *parse(Token *tok) {
-    Node head;
-    Node *tail = &head;
-    while (tok->kind != TOKEN_EOF) {
-        tail = tail->next = statement(&tok, tok);
-    }
-
+    tok = skip(tok, "{");
     Function *prog = calloc(1, sizeof(Function));
-    prog->node = head.next;
+    prog->node = multi_statement(&tok, tok)->body;
+    tok = skip(tok, "}");
+
     prog->locals = locals;
     // Function.stack_size will be set after all tokens are parsed.
     return prog;
