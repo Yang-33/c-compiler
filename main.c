@@ -11,7 +11,6 @@ int main(int argc, char **argv) {
     // Tokenize and parse.
     Token *tok = tokenize(argv[1]);
 
-
     Function *prog = parse(tok);
 
     // Assign offsets to local variables.

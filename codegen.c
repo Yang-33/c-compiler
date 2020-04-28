@@ -106,6 +106,7 @@ static void generate_asm(Node *node) {
     case NODE_RETURN:
     case NODE_ASSIGN:
     case NODE_IF:
+    case NODE_FOR:
     case NODE_VAR:
     case NODE_NUM:
         error("Internal error: invalid node. kind:= %d", node->kind);
@@ -144,6 +145,24 @@ static void generate_statement(Node *node) {
             generate_statement(node->then);
             printf(".L.end.%d:\n", seq);
         }
+    }
+    else if (node->kind == NODE_FOR) {
+        int seq = labelseq++;
+        if (node->init) {
+            generate_statement(node->init);
+        }
+        printf(".L.begin.%d:\n", seq);
+        if (node->cond) {
+            generate_asm(node->cond);
+            printf("  cmp %s, 0\n", reg(--top));
+            printf("  je  .L.end.%d\n", seq);
+        }
+        generate_statement(node->then);
+        if (node->inc) {
+            generate_statement(node->inc);
+        }
+        printf("  jmp .L.begin.%d\n", seq);
+        printf(".L.end.%d:\n", seq);
     }
     else {
         error("invalid statement");

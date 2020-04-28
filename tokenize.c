@@ -72,7 +72,7 @@ static bool is_alnum_or_underscore(char c) {
 }
 
 static int is_keyword(char *p) {
-    static char *kw[] = { "return","if","else" };
+    static char *kw[] = { "return", "if", "else", "for" };
     for (int i = 0; i < (int)(sizeof(kw) / sizeof(*kw)); ++i) {
         int n = strlen(kw[i]);
         if (prefix_matchs(p, kw[i]) && !is_alnum_or_underscore(p[n])) {
