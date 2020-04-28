@@ -82,6 +82,7 @@ static Node *primary(Token **rest, Token *tok);
 // statement = "return" expr ";"
 //           | "if" "(" expr ")" statement ("else" statement)?
 //           | "for" "(" expr? ";" expr? ";" expr? ")" statement
+//           | "while" "(" expr ")" statement
 //           | expr ";"
 static Node *statement(Token **rest, Token *tok) {
     if (equal(tok, "return")) {
@@ -125,6 +126,15 @@ static Node *statement(Token **rest, Token *tok) {
 
         node->then = statement(&tok, tok);
         *rest = tok;
+        return node;
+    }
+
+    if (equal(tok, "while")) {
+        Node *node = create_new_node(NODE_FOR);
+        tok = skip(tok->next, "(");
+        node->cond = expr(&tok, tok);
+        tok = skip(tok, ")");
+        node->then = statement(rest, tok);
         return node;
     }
     Node *node = create_new_unary_node(NODE_EXPR_STATEMENT, expr(&tok, tok));

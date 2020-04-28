@@ -61,7 +61,7 @@ typedef enum {
     NODE_ASSIGN,          // =
     NODE_RETURN,          // return
     NODE_IF,              // if
-    NODE_FOR,             // for
+    NODE_FOR,             // for or while
     NODE_EXPR_STATEMENT,  // Expression statement
     NODE_VAR,             // Variable
     NODE_NUM,             // Integer
