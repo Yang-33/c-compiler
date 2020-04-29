@@ -9,14 +9,20 @@ static char *reg(int idx) {
     return r[idx];
 }
 
+static void generate_asm(Node *node);
+
 // Pushes the given node's address to the stack.
 static void generate_address(Node *node) {
     if (node->kind == NODE_VAR) {
         printf("  lea %s, [rbp-%d]\n", reg(top++), node->var->offset);
         return;
     }
+    else if (node->kind == NODE_DEREFERENCE) {
+        generate_asm(node->lhs);
+        return;
+    }
 
-    error("%s is not an lvalue", node->tok);
+    error("%s is not an lvalue", node->tok->token_string);
 }
 
 static void load(void) {
@@ -35,6 +41,15 @@ static void generate_asm(Node *node) {
     }
     else if (node->kind == NODE_VAR) {
         generate_address(node);
+        load();
+        return;
+    }
+    else if (node->kind == NODE_ADDRESS) {
+        generate_address(node->lhs);
+        return;
+    }
+    else if (node->kind == NODE_DEREFERENCE) {
+        generate_asm(node->lhs);
         load();
         return;
     }
@@ -102,6 +117,8 @@ static void generate_asm(Node *node) {
         printf("  setge al\n");
         printf("  movzx %s, al\n", r_lhs);
         break;
+    case NODE_ADDRESS:
+    case NODE_DEREFERENCE:
     case NODE_EXPR_STATEMENT:
     case NODE_RETURN:
     case NODE_ASSIGN:
@@ -111,7 +128,7 @@ static void generate_asm(Node *node) {
     case NODE_VAR:
     case NODE_NUM:
         error("Internal error: invalid node. kind:= %d, token:= %s",
-            node->kind, node->tok);
+            node->kind, node->tok->token_string);
         break;
     }
 }
@@ -172,7 +189,7 @@ static void generate_statement(Node *node) {
         }
     }
     else {
-        error("%s is invalid statement", node->tok);
+        error("%s is invalid statement", node->tok->token_string);
     }
 }
 

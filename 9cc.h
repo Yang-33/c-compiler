@@ -59,6 +59,8 @@ typedef enum {
     NODE_GT,              // >
     NODE_GE,              // >=
     NODE_ASSIGN,          // =
+    NODE_ADDRESS,         // unary &
+    NODE_DEREFERENCE,     // unary *
     NODE_RETURN,          // return
     NODE_IF,              // if
     NODE_FOR,             // for or while

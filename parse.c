@@ -280,7 +280,7 @@ static Node *mul(Token **rest, Token *tok) {
     }
 }
 
-// unary = ("+" | "-") unary
+// unary = ("+" | "-" | "*" | "&") unary
 //       | primary
 static Node *unary(Token **rest, Token *tok) {
     if (equal(tok, "+")) {
@@ -289,6 +289,13 @@ static Node *unary(Token **rest, Token *tok) {
     else if (equal(tok, "-")) {
         return create_new_binary_node(
             NODE_SUB, create_new_num_node(0, tok), unary(rest, tok->next), tok);
+    }
+    else if (equal(tok, "*")) {
+        return create_new_unary_node(
+            NODE_DEREFERENCE, unary(rest, tok->next), tok);
+    }
+    else if (equal(tok, "&")) {
+        return create_new_unary_node(NODE_ADDRESS, unary(rest, tok->next), tok);
     }
     return primary(rest, tok);
 }
