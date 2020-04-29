@@ -73,6 +73,7 @@ typedef struct Node Node;
 struct Node {
     NodeKind kind;
     Node *next;    // Divided by semicolon
+    Token *tok;    // Representative token
 
     Node *lhs;
     Node *rhs;

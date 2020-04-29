@@ -16,7 +16,7 @@ static void generate_address(Node *node) {
         return;
     }
 
-    error("not an lvalue");
+    error("%s is not an lvalue", node->tok);
 }
 
 static void load(void) {
@@ -110,7 +110,8 @@ static void generate_asm(Node *node) {
     case NODE_BLOCK:
     case NODE_VAR:
     case NODE_NUM:
-        error("Internal error: invalid node. kind:= %d", node->kind);
+        error("Internal error: invalid node. kind:= %d, token:= %s",
+            node->kind, node->tok);
         break;
     }
 }
@@ -171,7 +172,7 @@ static void generate_statement(Node *node) {
         }
     }
     else {
-        error("invalid statement");
+        error("%s is invalid statement", node->tok);
     }
 }
 

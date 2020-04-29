@@ -5,6 +5,7 @@
 Var *locals;
 
 static Node *multi_statement(Token **rest, Token *tok);
+static Node *expr_statement(Token **rest, Token *tok);
 static Node *expr(Token **rest, Token *tok);
 static Node *assign(Token **rest, Token *tok);
 static Node *equality(Token **rest, Token *tok);
@@ -33,33 +34,36 @@ static Var *find_var(Token *tok) {
     return NULL;
 }
 
-static Node *create_new_node(NodeKind kind) {
+static Node *create_new_node(NodeKind kind, Token *tok) {
     Node *node = calloc(1, sizeof(Node));
     node->kind = kind;
+    node->tok = tok;
     return node;
 }
 
-static Node *create_new_binary_node(NodeKind kind, Node *lhs, Node *rhs) {
-    Node *node = create_new_node(kind);
+static Node *create_new_binary_node(
+    NodeKind kind, Node *lhs, Node *rhs, Token *tok) {
+
+    Node *node = create_new_node(kind, tok);
     node->lhs = lhs;
     node->rhs = rhs;
     return node;
 }
 
-static Node *create_new_unary_node(NodeKind kind, Node *lhs) {
-    Node *node = create_new_node(kind);
+static Node *create_new_unary_node(NodeKind kind, Node *lhs, Token *tok) {
+    Node *node = create_new_node(kind, tok);
     node->lhs = lhs;
     return node;
 }
 
-static Node *create_new_num_node(int val) {
-    Node *node = create_new_node(NODE_NUM);
+static Node *create_new_num_node(int val, Token *tok) {
+    Node *node = create_new_node(NODE_NUM, tok);
     node->val = val;
     return node;
 }
 
-static Node *create_new_var_node(Var *var) {
-    Node *node = create_new_node(NODE_VAR);
+static Node *create_new_var_node(Var *var, Token *tok) {
+    Node *node = create_new_node(NODE_VAR, tok);
     node->var = var;
     return node;
 }
@@ -88,12 +92,13 @@ static int take_number(Token *tok) {
 //           | expr ";"
 static Node *statement(Token **rest, Token *tok) {
     if (equal(tok, "return")) {
-        Node *node = create_new_unary_node(NODE_RETURN, expr(&tok, tok->next));
+        Node *node = create_new_node(NODE_RETURN, tok);
+        node->lhs = expr(&tok, tok->next);
         *rest = skip(tok, ";");
         return node;
     }
     if (equal(tok, "if")) {
-        Node *node = create_new_node(NODE_IF);
+        Node *node = create_new_node(NODE_IF, tok);
         tok = skip(tok->next, "(");
         node->cond = expr(&tok, tok);
         tok = skip(tok, ")");
@@ -106,12 +111,11 @@ static Node *statement(Token **rest, Token *tok) {
     }
 
     if (equal(tok, "for")) {
-        Node *node = create_new_node(NODE_FOR);
+        Node *node = create_new_node(NODE_FOR, tok);
         tok = skip(tok->next, "(");
 
         if (!equal(tok, ";")) {
-            node->init =
-                create_new_unary_node(NODE_EXPR_STATEMENT, expr(&tok, tok));
+            node->init = expr_statement(&tok, tok);
         }
         tok = skip(tok, ";");
 
@@ -121,8 +125,7 @@ static Node *statement(Token **rest, Token *tok) {
         tok = skip(tok, ";");
 
         if (!equal(tok, ")")) {
-            node->inc =
-                create_new_unary_node(NODE_EXPR_STATEMENT, expr(&tok, tok));
+            node->inc = expr_statement(&tok, tok);
         }
         tok = skip(tok, ")");
 
@@ -132,7 +135,7 @@ static Node *statement(Token **rest, Token *tok) {
     }
 
     if (equal(tok, "while")) {
-        Node *node = create_new_node(NODE_FOR);
+        Node *node = create_new_node(NODE_FOR, tok);
         tok = skip(tok->next, "(");
         node->cond = expr(&tok, tok);
         tok = skip(tok, ")");
@@ -146,23 +149,30 @@ static Node *statement(Token **rest, Token *tok) {
         *rest = tok;
         return node;
     }
-
-    Node *node = create_new_unary_node(NODE_EXPR_STATEMENT, expr(&tok, tok));
+    Node *node = expr_statement(&tok, tok);
     *rest = skip(tok, ";");
     return node;
 }
 
 // multi_statement = statement*
 static Node *multi_statement(Token **rest, Token *tok) {
+    Node *node = create_new_node(NODE_BLOCK, tok);
+
     Node head;
     Node *tail = &head;
     while (!equal(tok, "}")) {
         tail = tail->next = statement(&tok, tok);
     }
 
-    Node *node = create_new_node(NODE_BLOCK);
     node->body = head.next;
     *rest = tok;
+    return node;
+}
+
+// expr_statement = expr
+static Node *expr_statement(Token **rest, Token *tok) {
+    Node *node = create_new_node(NODE_EXPR_STATEMENT, tok);
+    node->lhs = expr(rest, tok);
     return node;
 }
 
@@ -175,7 +185,8 @@ static Node *expr(Token **rest, Token *tok) {
 static Node *assign(Token **rest, Token *tok) {
     Node *node = equality(&tok, tok);
     if (equal(tok, "=")) {
-        node = create_new_binary_node(NODE_ASSIGN, node, assign(&tok, tok->next));
+        node = create_new_binary_node(
+            NODE_ASSIGN, node, assign(&tok, tok->next), tok);
     }
     *rest = tok;
     return node;
@@ -187,12 +198,12 @@ static Node *equality(Token **rest, Token *tok) {
 
     for (;;) {
         if (equal(tok, "==")) {
-            Node *rhs = relational(&tok, tok->next);
-            node = create_new_binary_node(NODE_EQ, node, rhs);
+            node = create_new_binary_node(NODE_EQ, node, NULL, tok);
+            node->rhs = relational(&tok, tok->next);
         }
         else if (equal(tok, "!=")) {
-            Node *rhs = relational(&tok, tok->next);
-            node = create_new_binary_node(NODE_NE, node, rhs);
+            node = create_new_binary_node(NODE_NE, node, NULL, tok);
+            node->rhs = relational(&tok, tok->next);
         }
         else {
             *rest = tok;
@@ -207,20 +218,20 @@ static Node *relational(Token **rest, Token *tok) {
 
     for (;;) {
         if (equal(tok, "<")) {
-            Node *rhs = add(&tok, tok->next);
-            node = create_new_binary_node(NODE_LT, node, rhs);
+            node = create_new_binary_node(NODE_LT, node, NULL, tok);
+            node->rhs = add(&tok, tok->next);
         }
         else if (equal(tok, "<=")) {
-            Node *rhs = add(&tok, tok->next);
-            node = create_new_binary_node(NODE_LE, node, rhs);
+            node = create_new_binary_node(NODE_LE, node, NULL, tok);
+            node->rhs = add(&tok, tok->next);
         }
         else if (equal(tok, ">")) {
-            Node *rhs = add(&tok, tok->next);
-            node = create_new_binary_node(NODE_GT, node, rhs);
+            node = create_new_binary_node(NODE_GT, node, NULL, tok);
+            node->rhs = add(&tok, tok->next);
         }
         else if (equal(tok, ">=")) {
-            Node *rhs = add(&tok, tok->next);
-            node = create_new_binary_node(NODE_GE, node, rhs);
+            node = create_new_binary_node(NODE_GE, node, NULL, tok);
+            node->rhs = add(&tok, tok->next);
         }
         else {
             *rest = tok;
@@ -235,12 +246,12 @@ static Node *add(Token **rest, Token *tok) {
 
     for (;;) {
         if (equal(tok, "+")) {
-            Node *rhs = mul(&tok, tok->next);
-            node = create_new_binary_node(NODE_ADD, node, rhs);
+            node = create_new_binary_node(NODE_ADD, node, NULL, tok);
+            node->rhs = mul(&tok, tok->next);
         }
         else if (equal(tok, "-")) {
-            Node *rhs = mul(&tok, tok->next);
-            node = create_new_binary_node(NODE_SUB, node, rhs);
+            node = create_new_binary_node(NODE_SUB, node, NULL, tok);
+            node->rhs = mul(&tok, tok->next);
         }
         else {
             *rest = tok;
@@ -255,12 +266,12 @@ static Node *mul(Token **rest, Token *tok) {
 
     for (;;) {
         if (equal(tok, "*")) {
-            Node *rhs = unary(&tok, tok->next);
-            node = create_new_binary_node(NODE_MUL, node, rhs);
+            node = create_new_binary_node(NODE_MUL, node, NULL, tok);
+            node->rhs = unary(&tok, tok->next);
         }
         else if (equal(tok, "/")) {
-            Node *rhs = unary(&tok, tok->next);
-            node = create_new_binary_node(NODE_DIV, node, rhs);
+            node = create_new_binary_node(NODE_DIV, node, NULL, tok);
+            node->rhs = unary(&tok, tok->next);
         }
         else {
             *rest = tok;
@@ -277,7 +288,7 @@ static Node *unary(Token **rest, Token *tok) {
     }
     else if (equal(tok, "-")) {
         return create_new_binary_node(
-            NODE_SUB, create_new_num_node(0), unary(rest, tok->next));
+            NODE_SUB, create_new_num_node(0, tok), unary(rest, tok->next), tok);
     }
     return primary(rest, tok);
 }
@@ -297,9 +308,9 @@ static Node *primary(Token **rest, Token *tok) {
                 mystrndup(tok->token_string, tok->token_length));
         }
         *rest = tok->next;
-        return create_new_var_node(var);
+        return create_new_var_node(var, tok);
     }
-    Node *node = create_new_num_node(take_number(tok));
+    Node *node = create_new_num_node(take_number(tok), tok);
     *rest = tok->next;
     return node;
 }
