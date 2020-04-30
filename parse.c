@@ -5,6 +5,7 @@
 Var *locals;
 
 static Node *multi_statement(Token **rest, Token *tok);
+static Node *statement(Token **rest, Token *tok);
 static Node *expr_statement(Token **rest, Token *tok);
 static Node *expr(Token **rest, Token *tok);
 static Node *assign(Token **rest, Token *tok);
@@ -162,6 +163,7 @@ static Node *multi_statement(Token **rest, Token *tok) {
     Node *tail = &head;
     while (!equal(tok, "}")) {
         tail = tail->next = statement(&tok, tok);
+        add_type(tail);
     }
 
     node->body = head.next;
@@ -240,18 +242,79 @@ static Node *relational(Token **rest, Token *tok) {
     }
 }
 
+// In C, '+' operator is overloaded to perform the pointer arithmetic.
+// If p is a pointer, p + n adds not n but sizeof (*p) * n to the value of p,
+// so that p + n points to the location n elements (not bytes) ahead of p.
+// In other words, we neet to scale an integer value before adding to a pointer
+// value. This function takes care of the scaling.
+static Node *create_new_add_node(Node *lhs, Node *rhs, Token *tok) {
+    add_type(lhs);
+    add_type(rhs);
+
+    // number + number
+    if (is_integer(lhs->ty) && is_integer(rhs->ty)) {
+        return create_new_binary_node(NODE_ADD, lhs, rhs, tok);
+    }
+
+    // pointer + pointer
+    if (lhs->ty->base && rhs->ty->base) {
+        error_tok(tok, " pointer + pointer is invalid operands.");
+    }
+
+    // 'number + pointer'
+    if (!lhs->ty->base && rhs->ty->base) {
+        lhs = create_new_binary_node(
+            NODE_MUL, lhs, create_new_num_node(8, tok), tok);
+    }
+    else {
+        // 'pointer + number'
+        rhs = create_new_binary_node(
+            NODE_MUL, rhs, create_new_num_node(8, tok), tok);
+    }
+    return create_new_binary_node(NODE_ADD, lhs, rhs, tok);
+
+}
+
+// Like '+', '-' is overloaded for the pointer type.
+static Node *create_new_sub_node(Node *lhs, Node *rhs, Token *tok) {
+    add_type(lhs);
+    add_type(rhs);
+
+    // number - number
+    if (is_integer(lhs->ty) && is_integer(rhs->ty)) {
+        return create_new_binary_node(NODE_SUB, lhs, rhs, tok);
+    }
+
+    // pointer - number
+    if (lhs->ty->base && is_integer(rhs->ty)) {
+        rhs = create_new_binary_node(
+            NODE_MUL, rhs, create_new_num_node(8, tok), tok);
+        return create_new_binary_node(NODE_SUB, lhs, rhs, tok);
+    }
+
+    // pointer - pointer
+    if (lhs->ty->base && rhs->ty->base) {
+        Node *node = create_new_binary_node(NODE_SUB, lhs, rhs, tok);
+        return create_new_binary_node(
+            NODE_DIV, node, create_new_num_node(8, tok), tok);
+    }
+
+    // number - pointer
+    error_tok(tok, "number - pointer is invalid operands.");
+    return create_new_num_node(0, tok);
+}
+
 // add = mul ("+" mul | "-" mul)*
 static Node *add(Token **rest, Token *tok) {
     Node *node = mul(&tok, tok);
 
     for (;;) {
+        Token *start = tok;
         if (equal(tok, "+")) {
-            node = create_new_binary_node(NODE_ADD, node, NULL, tok);
-            node->rhs = mul(&tok, tok->next);
+            node = create_new_add_node(node, mul(&tok, tok->next), start);
         }
         else if (equal(tok, "-")) {
-            node = create_new_binary_node(NODE_SUB, node, NULL, tok);
-            node->rhs = mul(&tok, tok->next);
+            node = create_new_sub_node(node, mul(&tok, tok->next), start);
         }
         else {
             *rest = tok;

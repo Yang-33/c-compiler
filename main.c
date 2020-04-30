@@ -10,9 +10,7 @@ int main(int argc, char **argv) {
 
     // Tokenize and parse.
     Token *tok = tokenize(argv[1]);
-
     Function *prog = parse(tok);
-
     // Assign offsets to local variables.
     int offset = 32; // 32 for callee-saved registers
     for (Var *var = prog->locals; var; var = var->next) {
