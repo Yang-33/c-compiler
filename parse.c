@@ -4,6 +4,7 @@
 // list.
 Var *locals;
 
+static Node *declaration(Token **rest, Token *tok);
 static Node *multi_statement(Token **rest, Token *tok);
 static Node *statement(Token **rest, Token *tok);
 static Node *expr_statement(Token **rest, Token *tok);
@@ -69,13 +70,21 @@ static Node *create_new_var_node(Var *var, Token *tok) {
     return node;
 }
 
-static Var *create_new_local_var(char *name) {
+static Var *create_new_local_var(char *name, Type *ty) {
     Var *var = calloc(1, sizeof(Var));
     var->name = name;
+    var->ty = ty;
     var->next = locals;
     locals = var;
     // offset will be set after all tokens are parsed.
     return  var;
+}
+
+static char *get_identifier(Token *tok) {
+    if (tok->kind != TOKEN_IDENTIFIER) {
+        error_tok(tok, "expected an identifier.");
+    }
+    return mystrndup(tok->token_string, tok->token_length);
 }
 
 // Ensures that the current token is |TOKEN_NUM|.
@@ -85,6 +94,58 @@ static int take_number(Token *tok) {
     return tok->val;
 }
 
+// typespec = "int"
+static Type *typespec(Token **rest, Token *tok) {
+    *rest = skip(tok, "int");
+    return ty_int;
+}
+
+// declarator = "*" * identifier
+static Type *declarator(Token **rest, Token *tok, Type *ty) {
+    while (consume(&tok, tok, "*")) {
+        ty = pointer_to(ty);
+    }
+    if (tok->kind != TOKEN_IDENTIFIER) {
+        error_tok(tok, "expected a variable name.");
+    }
+
+    ty->name = tok;
+    *rest = tok->next;
+    return ty;
+}
+
+// declaration = typespec (declarator ("=" expr)?
+//                    ("," declarator ("=" expr)? )* )? ";"
+static Node *declaration(Token **rest, Token *tok) {
+    Type *basety = typespec(&tok, tok);
+
+    Node head;
+    head.next = NULL;
+    Node *tail = &head;
+    int cnt = 0;
+    while (!equal(tok, ";")) {
+        if (cnt++ > 0) {
+            tok = skip(tok, ",");
+        }
+        Type *ty = declarator(&tok, tok, basety);
+        Var *var = create_new_local_var(get_identifier(ty->name), ty);
+
+        if (!equal(tok, "=")) {
+            continue;
+        }
+        Node *lhs = create_new_var_node(var, ty->name);
+        tok = skip(tok, "=");
+        Node *rhs = assign(&tok, tok);
+        Node *node = create_new_binary_node(NODE_ASSIGN, lhs, rhs, tok);
+        tail = tail->next = create_new_unary_node(NODE_EXPR_STATEMENT, node, tok);
+    }
+
+    Node *node = create_new_node(NODE_BLOCK, tok);
+    node->body = head.next;
+    tok = skip(tok, ";");
+    *rest = tok;
+    return node;
+}
 // statement = "return" expr ";"
 //           | "if" "(" expr ")" statement ("else" statement)?
 //           | "for" "(" expr? ";" expr? ";" expr? ")" statement
@@ -155,14 +216,20 @@ static Node *statement(Token **rest, Token *tok) {
     return node;
 }
 
-// multi_statement = statement*
+// multi_statement = (declaration | statement)*
 static Node *multi_statement(Token **rest, Token *tok) {
     Node *node = create_new_node(NODE_BLOCK, tok);
 
     Node head;
+    head.next = NULL;
     Node *tail = &head;
     while (!equal(tok, "}")) {
-        tail = tail->next = statement(&tok, tok);
+        if (equal(tok, "int")) {
+            tail = tail->next = declaration(&tok, tok);
+        }
+        else {
+            tail = tail->next = statement(&tok, tok);
+        }
         add_type(tail);
     }
 
@@ -187,8 +254,8 @@ static Node *expr(Token **rest, Token *tok) {
 static Node *assign(Token **rest, Token *tok) {
     Node *node = equality(&tok, tok);
     if (equal(tok, "=")) {
-        node = create_new_binary_node(
-            NODE_ASSIGN, node, assign(&tok, tok->next), tok);
+        return create_new_binary_node(
+            NODE_ASSIGN, node, assign(rest, tok->next), tok);
     }
     *rest = tok;
     return node;
@@ -261,16 +328,15 @@ static Node *create_new_add_node(Node *lhs, Node *rhs, Token *tok) {
         error_tok(tok, " pointer + pointer is invalid operands.");
     }
 
-    // 'number + pointer'
+    // Canonicalize 'number + pointer' to 'pointer + number'.
     if (!lhs->ty->base && rhs->ty->base) {
-        lhs = create_new_binary_node(
-            NODE_MUL, lhs, create_new_num_node(8, tok), tok);
+        Node *tmp = lhs;
+        lhs = rhs;
+        rhs = tmp;
     }
-    else {
-        // 'pointer + number'
-        rhs = create_new_binary_node(
-            NODE_MUL, rhs, create_new_num_node(8, tok), tok);
-    }
+
+    rhs = create_new_binary_node(
+        NODE_MUL, rhs, create_new_num_node(8, tok), tok);
     return create_new_binary_node(NODE_ADD, lhs, rhs, tok);
 
 }
@@ -353,12 +419,12 @@ static Node *unary(Token **rest, Token *tok) {
         return create_new_binary_node(
             NODE_SUB, create_new_num_node(0, tok), unary(rest, tok->next), tok);
     }
+    else if (equal(tok, "&")) {
+        return create_new_unary_node(NODE_ADDRESS, unary(rest, tok->next), tok);
+    }
     else if (equal(tok, "*")) {
         return create_new_unary_node(
             NODE_DEREFERENCE, unary(rest, tok->next), tok);
-    }
-    else if (equal(tok, "&")) {
-        return create_new_unary_node(NODE_ADDRESS, unary(rest, tok->next), tok);
     }
     return primary(rest, tok);
 }
@@ -374,8 +440,7 @@ static Node *primary(Token **rest, Token *tok) {
     if (tok->kind == TOKEN_IDENTIFIER) {
         Var *var = find_var(tok);
         if (!var) {
-            var = create_new_local_var(
-                mystrndup(tok->token_string, tok->token_length));
+            error_tok(tok, "undefined variable.");
         }
         *rest = tok->next;
         return create_new_var_node(var, tok);
@@ -392,7 +457,6 @@ Function *parse(Token *tok) {
     Function *prog = calloc(1, sizeof(Function));
     prog->node = multi_statement(&tok, tok)->body;
     tok = skip(tok, "}");
-
     prog->locals = locals;
     // Function.stack_size will be set after all tokens are parsed.
     return prog;

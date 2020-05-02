@@ -33,6 +33,7 @@ void error(char *fmt, ...);
 void error_tok(Token *tok, char *fmt, ...);
 bool equal(Token *tok, char *s);
 Token *skip(Token *tok, char *s);
+bool consume(Token **rest, Token *tok, char *str);
 Token *tokenize(char *p);
 void print_all_token(Token *head);
 
@@ -45,6 +46,7 @@ typedef struct Var Var;
 struct Var {
     Var *next;
     char *name; // Variable name
+    Type *ty;   // Type
     int offset; // Offset from RBP
 };
 
@@ -107,17 +109,25 @@ struct Function {
 Function *parse(Token *tok);
 
 //
-// typing.c
+// type.c
 //
 
 typedef enum { TY_INT, TY_PTR } TypeKind;
 
 struct Type {
     TypeKind kind;
+
+    // Pointer
     Type *base;
+
+    // Declaration
+    Token *name;
 };
 
+extern Type *ty_int;
+
 bool is_integer(Type *ty);
+Type *pointer_to(Type *base);
 void add_type(Node *node);
 
 

@@ -48,9 +48,19 @@ Token *skip(Token *tok, char *s) {
     return tok->next;
 }
 
+bool consume(Token **rest, Token *tok, char *str) {
+    if (equal(tok, str)) {
+        *rest = tok->next;
+        return true;
+    }
+    *rest = tok;
+    return false;
+}
+
 // Adds the token information for |kind| and |str| after |tail|.
 static Token *create_new_token(Token *tail, TokenKind kind, char *token_string,
     int token_length) {
+
     Token *tok = calloc(1, sizeof(Token));
     tok->kind = kind;
     tok->token_string = token_string;
@@ -72,7 +82,7 @@ static bool is_alnum_or_underscore(char c) {
 }
 
 static int is_keyword(char *p) {
-    static char *kw[] = { "return", "if", "else", "for", "while" };
+    static char *kw[] = { "return", "if", "else", "for", "while", "int" };
     for (int i = 0; i < (int)(sizeof(kw) / sizeof(*kw)); ++i) {
         int n = strlen(kw[i]);
         if (prefix_matchs(p, kw[i]) && !is_alnum_or_underscore(p[n])) {
@@ -123,7 +133,7 @@ Token *tokenize(char *p) {
         }
 
         // Single-letter punctuators
-        if (strchr("+-*/&(){}<>=;", *p)) {
+        if (strchr("+-*/&(){}<>=,;", *p)) {
             tail = create_new_token(tail, TOKEN_SYMBOL, p, 1);
             p++;
             continue;

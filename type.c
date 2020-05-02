@@ -1,6 +1,6 @@
 #include "9cc.h"
 
-static Type *ty_int = &(Type) { TY_INT };
+Type *ty_int = &(Type) { TY_INT };
 
 bool is_integer(Type *ty) {
     return ty->kind == TY_INT;
@@ -29,7 +29,6 @@ void add_type(Node *node) {
     for (Node *n = node->body; n; n = n->next) {
         add_type(n);
     }
-
     switch (node->kind) {
     case NODE_ADD:
     case NODE_SUB:
@@ -44,21 +43,20 @@ void add_type(Node *node) {
     case NODE_LE:
     case NODE_GT:
     case NODE_GE:
-    case NODE_VAR:
     case NODE_NUM:
         node->ty = ty_int;
+        return;
+    case NODE_VAR:
+        node->ty = node->var->ty;
         return;
     case NODE_ADDRESS:
         node->ty = pointer_to(node->lhs->ty);
         return;
     case NODE_DEREFERENCE:
-        if (node->lhs->ty->kind == TY_PTR) {
-            // Step to int
-            node->ty = node->lhs->ty->base;
+        if (node->lhs->ty->kind != TY_PTR) {
+            error_tok(node->tok, "invalid pointer dereference");
         }
-        else {
-            node->ty = ty_int;
-        }
+        node->ty = node->lhs->ty->base;
         return;
     case NODE_RETURN:
     case NODE_IF:
