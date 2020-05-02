@@ -429,7 +429,8 @@ static Node *unary(Token **rest, Token *tok) {
     return primary(rest, tok);
 }
 
-// primary = "(" expr ")" | num | idnetifier
+// primary = "(" expr ")" | num | idnetifier args?
+// args = "(" ")"
 static Node *primary(Token **rest, Token *tok) {
     if (equal(tok, "(")) {
         Node *node = expr(&tok, tok->next);
@@ -438,6 +439,15 @@ static Node *primary(Token **rest, Token *tok) {
     }
 
     if (tok->kind == TOKEN_IDENTIFIER) {
+        // Function call
+        if (equal(tok->next, "(")) {
+            Node *node = create_new_node(NODE_FUNCTION_CALL, tok);
+            node->funcname = mystrndup(tok->token_string, tok->token_length);
+            *rest = skip(tok->next->next, ")");
+            return node;
+        }
+
+        // Variable
         Var *var = find_var(tok);
         if (!var) {
             error_tok(tok, "undefined variable.");

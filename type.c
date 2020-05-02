@@ -44,6 +44,7 @@ void add_type(Node *node) {
     case NODE_GT:
     case NODE_GE:
     case NODE_NUM:
+    case NODE_FUNCTION_CALL:
         node->ty = ty_int;
         return;
     case NODE_VAR:

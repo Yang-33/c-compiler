@@ -59,6 +59,17 @@ static void generate_asm(Node *node) {
         store();
         return;
     }
+    else if (node->kind == NODE_FUNCTION_CALL) {
+        printf("  push r10\n");
+        printf("  push r11\n");
+        printf("  mov rax, 0\n");
+        printf("  call %s\n", node->funcname);
+        printf("  pop r11\n");
+        printf("  pop r10\n");
+        printf("  mov %s, rax\n", reg(top++));
+
+        return;
+    }
 
 
     generate_asm(node->lhs);
@@ -127,6 +138,7 @@ static void generate_asm(Node *node) {
     case NODE_BLOCK:
     case NODE_VAR:
     case NODE_NUM:
+    case NODE_FUNCTION_CALL:
         error("Internal error: invalid node. kind:= %d, token:= %s",
             node->kind, node->tok->token_string);
         break;

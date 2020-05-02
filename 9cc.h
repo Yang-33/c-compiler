@@ -69,6 +69,7 @@ typedef enum {
     NODE_IF,              // if
     NODE_FOR,             // for or while
     NODE_BLOCK,           // { ... }
+    NODE_FUNCTION_CALL,   // Function call
     NODE_EXPR_STATEMENT,  // Expression statement
     NODE_VAR,             // Variable
     NODE_NUM,             // Integer
@@ -94,6 +95,9 @@ struct Node {
 
     // Code block
     Node *body;
+
+    // Function call
+    char *funcname;
 
     Var *var;      // Used if kind == NODE_VAR
     int val;       // Used if kind == NODE_NUM
