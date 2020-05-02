@@ -429,8 +429,23 @@ static Node *unary(Token **rest, Token *tok) {
     return primary(rest, tok);
 }
 
-// primary = "(" expr ")" | num | idnetifier args?
-// args = "(" ")"
+// func-args = "(" (assign ("," assign)* )? ")"
+static Node *func_args(Token **rest, Token *tok) {
+    Node head = {};
+    Node *tail = &head;
+
+    while (!equal(tok, ")")) {
+        if (tail != &head) {
+            tok = skip(tok, ",");
+        }
+        tail = tail->next = assign(&tok, tok);
+    }
+
+    *rest = skip(tok, ")");
+    return head.next;
+}
+
+// primary = "(" expr ")" | num | idnetifier func-args?
 static Node *primary(Token **rest, Token *tok) {
     if (equal(tok, "(")) {
         Node *node = expr(&tok, tok->next);
@@ -443,7 +458,7 @@ static Node *primary(Token **rest, Token *tok) {
         if (equal(tok->next, "(")) {
             Node *node = create_new_node(NODE_FUNCTION_CALL, tok);
             node->funcname = mystrndup(tok->token_string, tok->token_length);
-            *rest = skip(tok->next->next, ")");
+            node->args = func_args(rest, tok->next->next);
             return node;
         }
 

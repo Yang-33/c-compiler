@@ -2,6 +2,7 @@
 
 static int top;
 static int labelseq = 1;
+static char *argreg[] = { "rdi", "rsi", "rdx", "rcx", "r8", "r9" };
 static char *reg(int idx) {
     static char *r[] = { "r10", "r11", "r12", "r13", "r14", "r15" };
     if (idx < 0 || sizeof(r) / sizeof(*r) <= (unsigned int)idx)
@@ -60,10 +61,37 @@ static void generate_asm(Node *node) {
         return;
     }
     else if (node->kind == NODE_FUNCTION_CALL) {
+
+        int top_origin = top;
+        top = 0;
         printf("  push r10\n");
         printf("  push r11\n");
+        printf("  push r12\n");
+        printf("  push r13\n");
+        printf("  push r14\n");
+        printf("  push r15\n");
+
+        int nargs = 0;
+        for (Node *arg = node->args; arg; arg = arg->next) {
+            generate_asm(arg);
+            printf("  push %s\n", reg(--top));
+            printf("  sub rsp, 8\n");
+            ++nargs;
+        }
+
+        for (int i = nargs - 1; i >= 0; --i) {
+            printf("  add rsp, 8\n");
+            printf("  pop %s\n", argreg[i]);
+        }
+
         printf("  mov rax, 0\n");
         printf("  call %s\n", node->funcname);
+
+        top = top_origin;
+        printf("  pop r15\n");
+        printf("  pop r14\n");
+        printf("  pop r13\n");
+        printf("  pop r12\n");
         printf("  pop r11\n");
         printf("  pop r10\n");
         printf("  mov %s, rax\n", reg(top++));

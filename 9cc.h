@@ -98,6 +98,7 @@ struct Node {
 
     // Function call
     char *funcname;
+    Node *args;
 
     Var *var;      // Used if kind == NODE_VAR
     int val;       // Used if kind == NODE_NUM
