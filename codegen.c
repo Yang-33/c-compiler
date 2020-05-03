@@ -3,6 +3,8 @@
 static int top;
 static int labelseq = 1;
 static char *argreg[] = { "rdi", "rsi", "rdx", "rcx", "r8", "r9" };
+static char *funcname;
+
 static char *reg(int idx) {
     static char *r[] = { "r10", "r11", "r12", "r13", "r14", "r15" };
     if (idx < 0 || sizeof(r) / sizeof(*r) <= (unsigned int)idx)
@@ -182,7 +184,7 @@ static void generate_statement(Node *node) {
         generate_asm(node->lhs);
         // RAX represents program exit code.
         printf("  mov rax, %s\n", reg(--top));
-        printf("  jmp .L.return\n");
+        printf("  jmp .L.return.%s\n", funcname);
         return;
     }
     else if (node->kind == NODE_IF) {
@@ -237,31 +239,33 @@ static void generate_statement(Node *node) {
 void codegen(Function *prog) {
     // Print out the first half of assembly.
     printf(".intel_syntax noprefix\n");
-    printf(".global main\n");
-    printf("main:\n");
+    for (Function *fn = prog; fn; fn = fn->next) {
+        printf(".global %s\n", fn->name);
+        printf("%s:\n", fn->name);
+        funcname = fn->name;
+        // Prologue. r12-15 are callee-saved registers.
+        printf("  push rbp\n");
+        printf("  mov rbp, rsp\n");
+        printf("  sub rsp, %d\n", fn->stack_size);
+        printf("  mov [rbp-8], r12\n");
+        printf("  mov [rbp-16], r13\n");
+        printf("  mov [rbp-24], r14\n");
+        printf("  mov [rbp-32], r15\n");
 
-    // Prologue. r12-15 are callee-saved registers.
-    printf("  push rbp\n");
-    printf("  mov rbp, rsp\n");
-    printf("  sub rsp, %d\n", prog->stack_size);
-    printf("  mov [rbp-8], r12\n");
-    printf("  mov [rbp-16], r13\n");
-    printf("  mov [rbp-24], r14\n");
-    printf("  mov [rbp-32], r15\n");
+        // Traverse the AST to emit assembly.
+        for (Node *n = fn->node; n; n = n->next) {
+            generate_statement(n);
+            assert(top == 0);
+        }
 
-    // Traverse the AST to emit assembly.
-    for (Node *n = prog->node; n; n = n->next) {
-        generate_statement(n);
-        assert(top == 0);
+        // Epilogue
+        printf(".L.return.%s:\n", funcname);
+        printf("  mov r12, [rbp-8]\n");
+        printf("  mov r13, [rbp-16]\n");
+        printf("  mov r14, [rbp-24]\n");
+        printf("  mov r15, [rbp-32]\n");
+        printf("  mov rsp, rbp\n");
+        printf("  pop rbp\n");
+        printf("  ret\n");
     }
-
-    // Epilogue
-    printf(".L.return:\n");
-    printf("  mov r12, [rbp-8]\n");
-    printf("  mov r13, [rbp-16]\n");
-    printf("  mov r14, [rbp-24]\n");
-    printf("  mov r15, [rbp-32]\n");
-    printf("  mov rsp, rbp\n");
-    printf("  pop rbp\n");
-    printf("  ret\n");
 }

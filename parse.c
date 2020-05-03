@@ -4,6 +4,8 @@
 // list.
 Var *locals;
 
+static Type *typespec(Token **rest, Token *tok);
+static Type *declarator(Token **rest, Token *tok, Type *ty);
 static Node *declaration(Token **rest, Token *tok);
 static Node *multi_statement(Token **rest, Token *tok);
 static Node *statement(Token **rest, Token *tok);
@@ -94,13 +96,44 @@ static int take_number(Token *tok) {
     return tok->val;
 }
 
+// funcdef = typespec declarator multi-statement
+static Function *funcdef(Token **rest, Token *tok) {
+    locals = NULL;
+
+    Type *ty = typespec(&tok, tok);
+    ty = declarator(&tok, tok, ty);
+
+    Function *fn = calloc(1, sizeof(Function));
+    fn->name = get_identifier(ty->name);
+
+    tok = skip(tok, "{");
+
+    fn->node = multi_statement(&tok, tok)->body;
+    fn->locals = locals;
+
+    tok = skip(tok, "}");
+    *rest = tok;
+    return fn;
+}
+
 // typespec = "int"
 static Type *typespec(Token **rest, Token *tok) {
     *rest = skip(tok, "int");
     return ty_int;
 }
 
-// declarator = "*" * identifier
+// type-suffix = ( "(" func-params ")" )?
+static Type *type_suffix(Token **rest, Token *tok, Type *ty) {
+    if (equal(tok, "(")) {
+        *rest = skip(tok->next, ")");
+        return func_type(ty);
+    }
+    *rest = tok;
+    return ty;
+}
+
+
+// declarator = "*" * identifier type-suffix
 static Type *declarator(Token **rest, Token *tok, Type *ty) {
     while (consume(&tok, tok, "*")) {
         ty = pointer_to(ty);
@@ -108,9 +141,8 @@ static Type *declarator(Token **rest, Token *tok, Type *ty) {
     if (tok->kind != TOKEN_IDENTIFIER) {
         error_tok(tok, "expected a variable name.");
     }
-
+    ty = type_suffix(rest, tok->next, ty);
     ty->name = tok;
-    *rest = tok->next;
     return ty;
 }
 
@@ -476,13 +508,13 @@ static Node *primary(Token **rest, Token *tok) {
 }
 
 
-// program = "{" multi_statement "}"
+// program = funcdef*
 Function *parse(Token *tok) {
-    tok = skip(tok, "{");
-    Function *prog = calloc(1, sizeof(Function));
-    prog->node = multi_statement(&tok, tok)->body;
-    tok = skip(tok, "}");
-    prog->locals = locals;
-    // Function.stack_size will be set after all tokens are parsed.
-    return prog;
+    Function head = {};
+    Function *tail = &head;
+
+    while (tok->kind != TOKEN_EOF) {
+        tail = tail->next = funcdef(&tok, tok);
+    }
+    return head.next;
 }
