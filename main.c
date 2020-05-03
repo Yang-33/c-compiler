@@ -14,11 +14,11 @@ int main(int argc, char **argv) {
     // Assign offsets to local variables.
     for (Function *fn = prog; fn; fn = fn->next) {
         int offset = 32; // 32 for callee-saved registers
-        for (Var *var = prog->locals; var; var = var->next) {
+        for (Var *var = fn->locals; var; var = var->next) {
             offset += 8;
             var->offset = offset;
         }
-        prog->stack_size = align_to(offset, 16);
+        fn->stack_size = align_to(offset, 16);
     }
 
     // Traverse the AST to emit assembly.

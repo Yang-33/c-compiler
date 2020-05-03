@@ -252,6 +252,15 @@ void codegen(Function *prog) {
         printf("  mov [rbp-24], r14\n");
         printf("  mov [rbp-32], r15\n");
 
+        // Save arguments to the stack
+        int i = 0;
+        for (Var *var = fn->params; var; var = var->next) {
+            ++i;
+        }
+        for (Var *var = fn->params; var; var = var->next) {
+            printf("  mov [rbp-%d], %s\n", var->offset, argreg[--i]);
+        }
+
         // Traverse the AST to emit assembly.
         for (Node *n = fn->node; n; n = n->next) {
             generate_statement(n);

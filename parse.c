@@ -3,6 +3,13 @@
 // All local variable instances created during parsing are accumulated to this
 // list.
 Var *locals;
+static void print_all_locals() {
+    printf("LOCALS: [");
+    for (Var *var = locals; var; var = var->next) {
+        printf("%s ", var->name);
+    }
+    printf("] \n");
+}
 
 static Type *typespec(Token **rest, Token *tok);
 static Type *declarator(Token **rest, Token *tok, Type *ty);
@@ -105,6 +112,10 @@ static Function *funcdef(Token **rest, Token *tok) {
 
     Function *fn = calloc(1, sizeof(Function));
     fn->name = get_identifier(ty->name);
+    for (Type *t = ty->params; t; t = t->next) {
+        create_new_local_var(get_identifier(t->name), t);
+    }
+    fn->params = locals;
 
     tok = skip(tok, "{");
 
@@ -123,10 +134,28 @@ static Type *typespec(Token **rest, Token *tok) {
 }
 
 // type-suffix = ( "(" func-params ")" )?
+// func-params = param ( "," param) *
+// param = typespec declarator
 static Type *type_suffix(Token **rest, Token *tok, Type *ty) {
     if (equal(tok, "(")) {
-        *rest = skip(tok->next, ")");
-        return func_type(ty);
+        tok = tok->next;
+        Type head;
+        head.next = NULL;
+        Type *tail = &head;
+        while (!equal(tok, ")")) {
+            if (tail != &head) {
+                tok = skip(tok, ",");
+            }
+            Type *basety = typespec(&tok, tok);
+            Type *ty = declarator(&tok, tok, basety);
+            tail = tail->next = copy_type(ty);
+        }
+        ty = func_type(ty);
+        ty->params = head.next;
+
+        tok = skip(tok, ")");
+        *rest = tok;
+        return ty;
     }
     *rest = tok;
     return ty;
@@ -463,7 +492,8 @@ static Node *unary(Token **rest, Token *tok) {
 
 // func-args = "(" (assign ("," assign)* )? ")"
 static Node *func_args(Token **rest, Token *tok) {
-    Node head = {};
+    Node head;
+    head.next = NULL;
     Node *tail = &head;
 
     while (!equal(tok, ")")) {
@@ -510,7 +540,8 @@ static Node *primary(Token **rest, Token *tok) {
 
 // program = funcdef*
 Function *parse(Token *tok) {
-    Function head = {};
+    Function head;
+    head.next = NULL;
     Function *tail = &head;
 
     while (tok->kind != TOKEN_EOF) {
