@@ -1,4 +1,4 @@
-#include "9cc.h"
+#include "y3c.h"
 
 Type *ty_int = &(Type) { TY_INT };
 

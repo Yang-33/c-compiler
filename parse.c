@@ -1,4 +1,4 @@
-#include "9cc.h"
+#include "y3c.h"
 
 // All local variable instances created during parsing are accumulated to this
 // list.

@@ -1,4 +1,4 @@
-#include "9cc.h"
+#include "y3c.h"
 
 // Input string
 static char *current_input;

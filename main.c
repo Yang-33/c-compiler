@@ -1,4 +1,4 @@
-#include "9cc.h"
+#include "y3c.h"
 
 static int align_to(int n, int align) {
     return (n + align - 1) / align * align;
