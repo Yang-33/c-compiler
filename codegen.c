@@ -28,7 +28,16 @@ static void generate_address(Node *node) {
     error("%s is not an lvalue", node->tok->token_string);
 }
 
-static void load(void) {
+static void load(Type *ty) {
+    if (ty->kind == TY_ARRAY) {
+        // If it is an array, do nothing because in general we can't load
+        // an entire array to a register. As a result, the result of an
+        // evaluation of an array becomes not the array itself but the
+        // address of the array. In other words, this is where "array is
+        // automatically converted to a pointer to the first element of
+        // the array in C" occurs.
+        return;
+    }
     printf("  mov %s, [%s]\n", reg(top - 1), reg(top - 1));
 }
 
@@ -44,7 +53,7 @@ static void generate_asm(Node *node) {
     }
     else if (node->kind == NODE_VAR) {
         generate_address(node);
-        load();
+        load(node->ty);
         return;
     }
     else if (node->kind == NODE_ADDRESS) {
@@ -53,10 +62,13 @@ static void generate_asm(Node *node) {
     }
     else if (node->kind == NODE_DEREFERENCE) {
         generate_asm(node->lhs);
-        load();
+        load(node->ty);
         return;
     }
     else if (node->kind == NODE_ASSIGN) {
+        if (node->ty->kind == TY_ARRAY) {
+            error_tok(node->tok, "not an lvalue.");
+        }
         generate_asm(node->rhs);
         generate_address(node->lhs);
         store();

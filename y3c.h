@@ -121,16 +121,19 @@ Function *parse(Token *tok);
 // type.c
 //
 
-typedef enum { TY_INT, TY_PTR, TY_FUNC } TypeKind;
+typedef enum { TY_INT, TY_PTR, TY_FUNC, TY_ARRAY } TypeKind;
 
 struct Type {
     TypeKind kind;
-
-    // Pointer
+    int size;      // sizeof() value
+    // Pointer or array
     Type *base;
 
     // Declaration
     Token *name;
+
+    // Array
+    int array_length;
 
     // Function type
     Type *return_ty;
@@ -144,6 +147,7 @@ bool is_integer(Type *ty);
 Type *copy_type(Type *ty);
 Type *pointer_to(Type *base);
 Type *func_type(Type *return_ty);
+Type *array_of(Type *base, int size);
 void add_type(Node *node);
 
 
