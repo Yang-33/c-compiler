@@ -24,6 +24,7 @@ static Node *relational(Token **rest, Token *tok);
 static Node *add(Token **rest, Token *tok);
 static Node *mul(Token **rest, Token *tok);
 static Node *unary(Token **rest, Token *tok);
+static Node *postfix(Token **rest, Token *tok);
 static Node *primary(Token **rest, Token *tok);
 
 char *mystrndup(const char *s, size_t n) {
@@ -482,7 +483,7 @@ static Node *mul(Token **rest, Token *tok) {
 }
 
 // unary = ("+" | "-" | "*" | "&") unary
-//       | primary
+//       | postfix
 static Node *unary(Token **rest, Token *tok) {
     if (equal(tok, "+")) {
         return unary(rest, tok->next);
@@ -498,7 +499,7 @@ static Node *unary(Token **rest, Token *tok) {
         return create_new_unary_node(
             NODE_DEREFERENCE, unary(rest, tok->next), tok);
     }
-    return primary(rest, tok);
+    return postfix(rest, tok);
 }
 
 // func-args = "(" (assign ("," assign)* )? ")"
@@ -516,6 +517,20 @@ static Node *func_args(Token **rest, Token *tok) {
 
     *rest = skip(tok, ")");
     return head.next;
+}
+
+// postfix = primary ("[" expr "]")*
+static Node *postfix(Token **rest, Token *tok) {
+    Node *node = primary(&tok, tok);
+    while (equal(tok, "[")) {
+        Token *start = tok;
+        Node *idx = expr(&tok, tok->next);
+        tok = skip(tok, "]");
+        node = create_new_unary_node(
+            NODE_DEREFERENCE, create_new_add_node(node, idx, start), start);
+    }
+    *rest = tok;
+    return node;
 }
 
 // primary = "(" expr ")" | num | idnetifier func-args?
